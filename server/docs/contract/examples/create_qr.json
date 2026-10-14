@@ -1,0 +1,44 @@
+{
+  "name": "create_qr",
+  "operation_id": "createEnrollment",
+  "notes": "Fictional origin and fake code. QR contains enrollment code, never the permanent bearer token.",
+  "response": {
+    "status": 201,
+    "headers": {
+      "Content-Type": "application/json",
+      "Cache-Control": "no-store",
+      "X-Request-ID": "request_create_qr",
+      "Location": "/control/v1/enrollments/enrollment_demo"
+    },
+    "body": {
+      "enrollment": {
+        "id": "enrollment_demo",
+        "user_id": "user_alex",
+        "device_label": "Alex’s iPhone",
+        "created_at": "2026-10-13T18:00:00.000Z",
+        "expires_at": "2026-10-13T18:10:00.000Z",
+        "state": "pending",
+        "credential_id": null
+      },
+      "enrollment_url": "erecipe://enroll?v=1&server=https%3A%2F%2Ferecipe.example.invalid&code=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+    }
+  },
+  "request": {
+    "content_type": "application/json",
+    "body": {
+      "device_label": "Alex’s iPhone"
+    },
+    "headers": {
+      "X-eRecipe-Control": "1",
+      "Host": "erecipe.example.invalid",
+      "Origin": "https://erecipe.example.invalid"
+    }
+  },
+  "method": "POST",
+  "path_template": "/control/v1/users/{user_id}/enrollments",
+  "proxy_context": {
+    "ingress": "tailscale_serve",
+    "injected_headers": {},
+    "tailnet_access_permitted": true
+  }
+}

@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>eRecipe · X battery lab</title>
+<style>
+:root{font:15px system-ui,sans-serif;color:#17322d;background:#f2f5ef}body{max-width:1240px;margin:auto;padding:32px}
+header{display:flex;align-items:center;justify-content:space-between;margin-bottom:28px}h1{font-size:32px;margin:4px 0}h2{font-size:18px}
+.eyebrow{font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#61786e}
+.panel{background:#fff;border:1px solid #dbe3d8;border-radius:16px;padding:22px;margin-bottom:18px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.stat{background:#f2f5ef;padding:16px;border-radius:10px}.stat strong{display:block;font-size:24px;margin-top:6px}
+button,select,input{font:inherit;border-radius:8px;border:1px solid #acbdb1;padding:10px 12px;margin:4px 2px;background:white}
+button{cursor:pointer}button.primary{background:#215747;color:white;border-color:#215747}button:disabled{opacity:.5}
+label{display:inline-block;margin:4px}small,.muted{color:#64786e}dt{color:#64786e}dd{margin:3px 0 14px;overflow-wrap:anywhere}
+img{width:100%;border:1px solid #dce2da}pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px}
+.notice{padding:12px;border-left:4px solid #9c7539;background:#faf3e5}#message{min-height:24px;color:#8b361a}
+table{width:100%;font-size:13px;text-align:left;border-collapse:collapse}td,th{padding:8px;border-bottom:1px solid #e7eae5}
+@media(max-width:800px){.grid{grid-template-columns:1fr}body{padding:14px}.stats{grid-template-columns:1fr}}
+</style>
+<header><div><span class="eyebrow">eRecipe / stage 01</span><h1>X battery lab</h1><span class="muted">20-second baseline · single device · local controls</span></div><span id="connection">Connecting…</span></header>
+<div id="message" role="status" aria-live="polite"></div>
+<div class="stats panel"><div class="stat">Reported battery<strong id="battery">Unavailable</strong><small id="sample"></small></div><div class="stat">Observed check interval<strong id="interval">Unavailable</strong><small id="requested"></small></div><div class="stat">Unplugged window<strong id="unplugged">Not started</strong><small id="trend"></small></div></div>
+<div class="grid"><section>
+<div class="panel"><h2>Publish a test recipe</h2><p class="muted">Cached fixtures reuse their identifier. Fresh versions change visible content. Publishing a recipe selects soak mode.</p>
+<button class="primary" data-fixture="A">Publish A</button><button class="primary" data-fixture="B">Publish B</button><button data-fixture="LONG">Long recipe</button>
+<label><input type="checkbox" id="fresh">Create a fresh version</label><hr>
+<h2>Polling & experiment mode</h2><label>Seconds <input id="poll" type="number" min="5" max="3600" value="20" style="width:75px"></label>
+<label>Mode <select id="mode"><option value="soak">Static / soak</option><option value="snapshot">Diagnostic snapshot</option><option value="stress">Refresh stress</option></select></label>
+<button id="settings">Apply</button><button id="snapshot">Publish diagnostic snapshot</button>
+<p class="notice" id="mode-note">Soak: check-ins update this dashboard; the device image stays unchanged.</p>
+<small>Settings reach the X on its next check-in. Stress prepares a new image after every display response for the next cycle.</small>
+</div>
+<div class="panel"><h2>Run & observations</h2><button id="run">Start a new run</button><button id="mark">Mark unplugged now</button>
+<p class="muted">Disconnect dock power before marking unplugged. New runs reset counters but retain device pairing and the current image.</p>
+<p>Record when the selected image becomes fully readable:</p><button id="confirm">Confirm selected publication visible now</button>
+<small>Human observation, including click delay. Use the trial script with video for more precise measurements.</small>
+<dl id="details"></dl></div>
+</section><section><div class="panel"><h2>Selected image</h2><button class="primary" id="force-refresh">Force new image</button><p class="muted">Publish a fresh version of this image for the next device check-in. This does not wake a sleeping X.</p><img id="preview" alt="Current recipe image"><p id="version" class="muted"></p>
+<small>Preview requests are excluded from device image-fetch measurements.</small></div>
+<div class="panel"><h2>Latest reported telemetry</h2><pre id="telemetry">Waiting for device</pre><small>WAKE_TIME is preserved raw. Current official firmware sends milliseconds; verify the installed version. Missing values remain unavailable.</small></div>
+<div class="panel"><h2>Recent errors</h2><pre id="errors">None</pre></div></section></div>
+<div class="panel"><h2>Recent publications</h2><table><thead><tr><th>UTC</th><th>Image label</th><th>Observation</th></tr></thead><tbody id="history"></tbody></table></div>
+<script>
+let current, previewVersion;
+const $=id=>document.getElementById(id);
+const show=(id,text)=>$(id).textContent=text;
+async function command(path,body={},successMessage='Saved.'){
+  try{
+    const response=await fetch('/control/'+path,{method:'POST',headers:{'Content-Type':'application/json','X-eRecipe-Control':'1'},body:JSON.stringify(body)});
+    if(!response.ok)throw new Error(await response.text());
+    show('message',successMessage); await refresh();
+  }catch(e){show('message',e.message)}
+}
+async function refresh(){
+ try{
+  const response=await fetch('/control/status');if(!response.ok)throw new Error('Dashboard unavailable');
+  current=await response.json();const s=current;
+  show('connection',s.last_checkin?'Device has checked in':'Waiting for device setup');
+  show('battery',s.battery_percent===null?'Unavailable':s.battery_percent.toFixed(1)+'%');
+  show('sample',s.last_checkin?'Sample '+s.last_checkin+' · '+Math.round(s.sample_age_seconds)+'s old':'No reported sample');
+  show('interval',s.observed_interval_seconds===null?'Unavailable':s.observed_interval_seconds.toFixed(1)+'s');
+  show('requested','Requested sleep: '+s.poll_seconds+'s · '+s.checkins+' check-ins');
+  show('unplugged',s.unplugged_elapsed_hours===null?'Not started':s.unplugged_elapsed_hours.toFixed(2)+' hours');
+  const t=s.charge_trend;
+  show('trend',t?(t.drop_percentage_points.toFixed(1)+' points over '+t.window_hours.toFixed(1)+'h; '+(t.estimated_remaining_hours===null?'projection unavailable':t.estimated_remaining_hours.toFixed(1)+'h remaining (estimate)')):'Awaiting charge observations');
+  show('mode-note',s.mode==='stress'?'REFRESH STRESS: extra redraws; analyze power separately from recipe use.':s.mode==='snapshot'?'Snapshot: image contains a past telemetry sample and stays unchanged.':'Soak: check-ins update this dashboard; the device image stays unchanged.');
+  $('confirm').disabled=!s.publications.some(p=>p.id===s.publication_id&&!p.confirmed_at);
+  show('version',s.current.label+' · '+s.current.version);
+  if(previewVersion!==s.current.version){$('preview').src='/control/preview?v='+s.current.version;previewVersion=s.current.version}
+  show('telemetry',Object.keys(s.telemetry).length?JSON.stringify(s.telemetry,null,2):'Unavailable — no telemetry received');
+  show('errors',s.errors.length?s.errors.map(e=>e.at+' '+e.message).join('\n'):'None');
+  $('details').replaceChildren();
+  for(const [label,value] of Object.entries({'Run':s.run_id,'Mode':s.mode,'Publication':s.publication_id,'Published UTC':s.published_at,'Last check-in':s.last_checkin,'Last image request':s.last_fetch?JSON.stringify(s.last_fetch):null,'Image changes':s.updates,'Advertised server':s.base_url})){
+    const dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=label;dd.textContent=value??'Unavailable';$('details').append(dt,dd);
+  }
+  $('history').replaceChildren();
+  for(const p of [...s.publications].reverse().slice(0,15)){
+    const tr=document.createElement('tr');
+    for(const value of [p.at,p.label,p.confirmed_at?p.latency_seconds.toFixed(2)+'s · visually confirmed':'Pending visual observation']){
+      const td=document.createElement('td');td.textContent=value;tr.append(td)
+    }$('history').append(tr);
+  }
+ }catch(e){show('connection','Server unavailable');show('message',e.message)}
+}
+document.querySelectorAll('[data-fixture]').forEach(b=>b.onclick=()=>command('publish',{fixture:b.dataset.fixture,fresh:$('fresh').checked}));
+$('settings').onclick=()=>command('settings',{mode:$('mode').value,poll_seconds:Number($('poll').value)});
+$('snapshot').onclick=()=>command('snapshot');
+$('force-refresh').onclick=async()=>{
+  const button=$('force-refresh');button.disabled=true;button.textContent='Publishing…';
+  try{await command('force-refresh',{},'New image published. Waiting for the next device check-in.');}
+  finally{button.disabled=false;button.textContent='Force new image';}
+};
+$('run').onclick=()=>command('run');
+$('mark').onclick=()=>command('unplugged');
+$('confirm').onclick=()=>current&&command('confirm',{publication_id:current.publication_id});
+refresh().then(()=>{if(current){$('poll').value=current.poll_seconds;$('mode').value=current.mode}});
+setInterval(refresh,2000);
+</script></html>

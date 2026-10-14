@@ -1,0 +1,50 @@
+{
+  "name": "job_extracted",
+  "operation_id": "getJob",
+  "notes": "Render child is still active. Succeeded extraction does not mean a ready preview.",
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json",
+      "Cache-Control": "no-store",
+      "X-Request-ID": "request_job_extracted"
+    },
+    "body": {
+      "id": "job_extract",
+      "recipe_id": "recipe_salad",
+      "parent_job_id": null,
+      "kind": "extract",
+      "status": "succeeded",
+      "source_capture_id": "capture_text",
+      "input_revision_id": null,
+      "base_revision_id": null,
+      "requested_by": {
+        "id": "user_alex",
+        "display_name": "Alex"
+      },
+      "created_at": "2026-10-13T18:00:00.000Z",
+      "finished_at": "2026-10-13T18:00:00.000Z",
+      "attempt_count": 1,
+      "retry_allowed": false,
+      "cancel_allowed": true,
+      "error": null,
+      "result": {
+        "source_capture_id": "capture_text",
+        "revision_id": "revision_initial",
+        "render_set_id": null
+      },
+      "downstream_job_ids": [
+        "job_render"
+      ],
+      "attempts_href": "/api/v1/jobs/job_extract/attempts",
+      "request_id": "request_job_extracted"
+    }
+  },
+  "method": "GET",
+  "path_template": "/api/v1/jobs/{job_id}",
+  "request": {
+    "headers": {
+      "Authorization": "Bearer BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBA"
+    }
+  }
+}

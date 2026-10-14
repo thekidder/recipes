@@ -1,0 +1,5281 @@
+openapi: 3.1.0
+info:
+  title: eRecipe application and dashboard administration API
+  version: 1.0.0
+  description: Authoritative wire contract, October 13, 2026. Server implementation supports text and image imports;
+    URL acquisition remains capability-gated and unavailable. Supersedes the seed API in PHASE2_HANDOFF.md for wire shapes; product invariants remain. Paths include
+    prefixes; application origin is configured separately from the reader LAN origin. No OpenAI keys, firmware credentials,
+    lease tokens, storage paths or token hashes appear in these DTOs.
+servers:
+- url: /
+  description: Configured Tailscale Serve HTTPS origin for dashboard, /control/v1 and /api/v1; distinct from the
+    firmware LAN origin.
+security:
+- BearerAuth: []
+x-contract:
+  status: server-implemented
+  enrollment: 'erecipe://enroll?v=1&server=<percent-encoded HTTPS origin>&code=<43-char unpadded base64url secret>.
+    Exactly these three query keys; reject duplicates, unknown versions, fragments, userinfo, invalid ports, and
+    server paths/query/fragment. Scheme/host must be erecipe/enroll, path empty. App shows origin and confirms before
+    exchange. Never send an existing bearer token during enrollment, never follow redemption redirects, validate
+    TLS normally. Installed app and reachable Tailscale connection required. Expiry 600 seconds from server creation;
+    redemption at/after expiry fails. Single-use is strict: no response replay. Lost post-commit response requires
+    revoking linked credential and new QR. Token has no automatic expiry; revocable per credential or user. Hash
+    only at rest, constant-time secret comparisons. Generic invalid code, rate-limit by source (20 redemption requests/minute)
+    and globally (100/minute); Retry-After on 429. Enrollment codes appear only in the QR deep link and redemption
+    JSON body; never in HTTP URL query strings, logs or analytics. Bearer tokens appear only in the one-time redemption
+    response and Authorization headers. Custom schemes are not exclusive to one app; this design does not promise
+    protection against another installed app claiming the scheme. Code hashes and redemption-to-credential status
+    records remain available for audit/recovery after expiry; no raw code is retained. Keychain credentials must
+    be shared with the Share extension through an explicitly configured Keychain access group if background uploads
+    use them; do not put tokens in App Group files or ordinary preferences. The server origin embedded in QR codes
+    is the configured Tailscale Serve HTTPS origin, never the loopback upstream address. Redemption rate-limit source
+    is derived only from trusted Serve ingress metadata; never trust arbitrary forwarded source headers from the
+    LAN listener.'
+  idempotency: 'All commands marked with Idempotency-Key keep durable receipts for the lifetime of their target
+    records; no automatic expiry in v1. Authenticate first, then look up receipt before state/conflict checks. Namespace
+    is user ID for application commands; a single separate server-wide dashboard-control namespace, independent
+    of optional Tailscale identity. Fingerprint HTTP method, canonical route/target and validated logical body;
+    image fingerprint includes manifest order, filenames, detected MIME and byte hashes, excluding multipart boundaries/header
+    order. Same key+fingerprint replays original status/body/Location even if resources progressed; mismatched request
+    returns 409 idempotency_conflict. Replay header Idempotency-Replayed: true; false on first success. Commit receipt
+    and domain transition atomically; never replay partial side effects. Only successful outcomes are retained;
+    failures before commit do not reserve a key. Server job-internal keys occupy a separate namespace. Enrollment
+    creation/redemption and self-revocation are explicit exceptions. Request-ID is per HTTP attempt, never replayed.'
+  pagination: Default limit 50, maximum 100. items,next_cursor,has_more; next_cursor is null iff has_more=false.
+    Default ordering created_at DESC,id DESC; capture and attempt/call routes state alternatives. First-page high-water
+    bound retained in opaque cursor; bind route, target, filters and page size. Cursor expires in 24 hours; invalid
+    or expired -> 400 invalid_cursor. No offset pagination, total count, snapshot isolation or incremental sync
+    promise. Reconcile recipes using visibility=all, apply explicit archive records, retain absent records, then
+    repeat traversal on later refresh. updated_at is not a sync cursor. Defaults and filters must remain identical
+    when following next_cursor.
+  concurrency: expected_lock_version required for editing, acceptance, archive. Compare atomically; 409 revision_conflict
+    includes details.current_revision_id and details.lock_version (current server values). Increment only on current-document/archive
+    transitions; job progress/candidates/renders update updated_at without changing lock_version. Client retains
+    unsaved draft; do not silently rebase. First successful extraction can initialize current only if null; later
+    extraction results are candidates. Candidate membership is never inferred simply as revision != current.
+  limits: 'Application JSON body maximum 1 MiB including JSON encoding; decoded text/Markdown <=100000 Unicode scalars;
+    URL <=8192 scalars. Non-whitespace text, nonblank single-line names. Reject content-encoded request bodies (415)
+    in v1. Image capability: 6 still JPEG/PNG images, <=10 MiB/file, <=30 MiB summed files, multipart <=31
+    MiB incl metadata/headers, metadata <=16 KiB, <=20 million decoded pixels per file. Signature must match declared
+    type; animated PNG, HEIC, GIF, PDF and SVG unsupported (415 unsupported_media_type). Validate bounds before
+    expensive decode; preserve originals before normalization. Capability advertised only when bounded validation/normalization
+    exist. Values returned in status match these constants.'
+  errors: Every non-2xx except 304 has Error envelope, including framework validation/404/405/500. Codes are extensible
+    strings. Validation details.violations is an array of {path,message,line?}; JSON pointer path, optional one-based
+    Markdown line. Never echo enrollment codes, input secrets or raw provider failures. retryable means retrying
+    the same request/work may succeed after stated remediation; it is not permission to retry edits with a different
+    lock or automatically replay enrollment. 401 bearer errors use invalid_credentials; all errors carry request_id
+    also in X-Request-ID. Responses for unsupported HTTP methods use 405 method_not_allowed with Allow; unknown
+    routes use 404 not_found.
+  cache: 'All JSON/control/enrollment/error responses Cache-Control: no-store. Asset GET alone uses private immutable
+    caching and ETag. Authenticate before 304; client caches are partitioned by server_id and credentials/access
+    context, erased on disconnect. Firmware /images caching is unaffected.'
+  compatibility: Clients ignore unknown response fields and tolerate unknown error codes. Required fields remain
+    present; null is distinct from missing. Requests reject unknown fields. IDs are case-sensitive opaque strings;
+    assets use full SHA-256. New enum values require client-safe handling before introduction. Breaking wire changes
+    require /api/v2. Capability flags gate implementation availability, not user permissions. server_id is persistent
+    across restart and stable for a library, separate from its hostname. Fields named *_href and Location are origin-relative
+    paths beginning with /api/v1 or /control/v1 as applicable. Clients resolve them against the configured origin,
+    not the firmware LAN origin, and must not attach a bearer token to a different origin.
+  job_semantics: Jobs describe one stage. Parent success and creation of its child are atomic; results are inspectable.
+    cancel traverses descendants under same transaction/fence, including a stage finishing concurrently. Completed
+    evidence immutable. Background jobs cannot change explicit publication or overwrite accepted revisions. Attempt
+    cap five; failed capture retries create new linked capture via refresh. All API state mutations and job completions
+    must check archive state.
+  error_codes:
+  - invalid_request
+  - invalid_cursor
+  - invalid_credentials
+  - enrollment_invalid
+  - enrollment_unavailable
+  - enrollment_origin_unconfigured
+  - enrollment_already_redeemed
+  - user_disabled
+  - forbidden
+  - not_found
+  - idempotency_conflict
+  - revision_conflict
+  - revision_unavailable
+  - candidate_not_pending
+  - recipe_archived
+  - capture_incomplete
+  - refresh_unsupported
+  - job_not_retryable
+  - job_not_cancellable
+  - device_not_paired
+  - page_not_found
+  - payload_too_large
+  - unsupported_media_type
+  - unsupported_import_kind
+  - unsupported_profile
+  - unsafe_url
+  - unsupported_source
+  - source_too_large
+  - invalid_markdown
+  - render_overflow
+  - render_unavailable
+  - configuration_missing
+  - capture_failed
+  - capture_cancelled
+  - provider_refusal
+  - provider_unavailable
+  - invalid_extraction
+  - rate_limited
+  - service_unavailable
+  - internal_error
+  - method_not_allowed
+  - unsupported_capability
+  capability_failure: Operations whose x-required-capability flag is false return 422 unsupported_capability with
+    details.capability before mutation. Import kinds not advertised return 422 unsupported_import_kind; unknown
+    render profile returns 422 unsupported_profile. Read endpoints remain available for previously retained data
+    regardless of feature availability.
+  dashboard_access: 'The dashboard and /control/v1 are available at the configured Tailscale Serve HTTPS origin.
+    Tailnet access rules are the authorization boundary: anyone permitted to reach this service through Serve is
+    trusted to administer it. There is no application-level dashboard login, administrator allowlist, bearer token
+    or required Tailscale user-identity header. Tagged source devices are permitted when tailnet access rules permit
+    them. Serve terminates HTTPS and proxies to a dedicated loopback-bound application listener, separate from the
+    LAN firmware listener. The local host is trusted. The LAN listener must reject /control/v1 regardless of claimed
+    headers; clients cannot select trusted ingress by supplying a header. No public Funnel ingress. Existing direct-loopback
+    legacy controls may retain their original local checks; legacy controls exposed through Serve use the same trusted
+    ingress and browser protections as the dashboard. Both listeners must share coordinated library/device-store
+    access, never independent writers. OpenAPI security: [] on controls means no application credential, not public
+    network access.'
+  dashboard_csrf: 'On Serve ingress require Host to match the configured HTTPS origin authority; validate any supplied
+    Origin against that exact origin. All dashboard/control POST requests additionally require Origin equal to the
+    configured HTTPS origin and X-eRecipe-Control: 1. Missing/mismatched Origin or control header -> 403 forbidden.
+    No cross-origin CORS access to controls, no state-changing GET. Do not compare Origin to the internal HTTP upstream
+    URL or derive trusted public origins from arbitrary Forwarded/X-Forwarded headers. Tailscale-User-Login may
+    be recorded as optional audit context from trusted Serve ingress but is never required or used to allow/deny
+    dashboard access. The /api/v1 bearer requirement remains unchanged, except for the intentionally unauthenticated
+    enrollment exchange.'
+paths:
+  /api/v1/enrollments/redeem:
+    post:
+      operationId: redeemEnrollment
+      summary: Consume a QR enrollment code and issue one client credential
+      tags:
+      - Enrollment
+      description: 'No existing bearer token required. Atomic consume-and-create: one winner in concurrent redemption;
+        code cannot be exchanged twice. Unknown well-formed code: 401 enrollment_invalid; expired/revoked/redeemed
+        code: 410 enrollment_unavailable. Credential returned once, never replayed. If response is lost after commit,
+        use dashboard to revoke the linked credential and create a new enrollment; do not automatically loop retries.
+        Cache-Control: no-store. Location identifies /api/v1/status. Code/body/response excluded from logs.'
+      parameters: []
+      responses:
+        '201':
+          description: Consume a QR enrollment code and issue one client credential
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EnrollmentRedeemed'
+          headers:
+            Location:
+              description: Relative URL of the created or polled resource.
+              schema:
+                type: string
+            X-Request-ID:
+              schema:
+                type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[A-Za-z0-9_-]+$
+                description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+              description: Unique per HTTP request; contains no secrets.
+            Idempotency-Replayed:
+              schema:
+                type: string
+                enum:
+                - 'true'
+                - 'false'
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '410':
+          $ref: '#/components/responses/Error410'
+        '413':
+          $ref: '#/components/responses/Error413'
+        '429':
+          $ref: '#/components/responses/Error429'
+        '500':
+          $ref: '#/components/responses/Error500'
+        default:
+          description: Other failures use the same envelope. Clients must tolerate unknown error codes.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          headers:
+            X-Request-ID:
+              schema:
+                type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[A-Za-z0-9_-]+$
+                description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+              description: Unique per HTTP request; contains no secrets.
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+        '422':
+          $ref: '#/components/responses/Error422'
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RedeemEnrollment'
+  /api/v1/status:
+    get:
+      operationId: getStatus
+      summary: Get current user, capabilities and readiness
+      tags:
+      - Status
+      description: Get current user, capabilities and readiness
+      parameters: []
+      responses:
+        '200':
+          description: Get current user, capabilities and readiness
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Status'
+          headers:
+            X-Request-ID:
+              schema:
+                type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[A-Za-z0-9_-]+$
+                description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+              description: Unique per HTTP request; contains no secrets.
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '429':
+          $ref: '#/components/responses/Error429'
+        '500':
+          $ref: '#/components/responses/Error500'
+        default:
+          description: Other failures use the same envelope. Clients must tolerate unknown error codes.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          headers:
+            X-Request-ID:
+              schema:
+                type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[A-Za-z0-9_-]+$
+                description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+              description: Unique per HTTP request; contains no secrets.
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+        '422':
+          $ref: '#/components/responses/Error422'
+  /api/v1/credentials/current/revoke:
+    post:
+      operationId: revokeCurrentCredential
+      summary: Revoke the calling credential
+      tags:
+      - Credentials
+      description: Used for disconnect/logout. Idempotent effect; after revocation the same token returns 401. Erasing
+        local credentials alone does not revoke server access.
+      parameters: []
+      responses:
+        '204':
+          description: Revoke the calling credential
+          headers:
+            X-Request-ID:
+              schema:
+                type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[A-Za-z0-9_-]+$
+                description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+              description: Unique per HTTP request; contains no secrets.
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '429':
+          $ref: '#/components/responses/Error429'
+        '500':
+          $ref: '#/components/responses/Error500'
+        default:
+          description: Other failures use the same envelope. Clients must tolerate unknown error codes.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          headers:
+            X-Request-ID:
+              schema:
+                type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[A-Za-z0-9_-]+$
+                description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+              description: Unique per HTTP request; contains no secrets.
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+        '422':
+          $ref: '#/components/responses/Error422'
+  /api/v1/imports:
+    post:
+      operationId: createImport
+      summary: Persist original input and enqueue processing
+      tags:
+      - Imports
+      description: '202 means original bytes and the initial durable job committed. Text starts extract; URL starts
+        capture. Missing OpenAI configuration does not reject a supported import: preserve input, expose readiness,
+        and let processing report configuration_missing. Unsupported capability returns 422 unsupported_import_kind
+        before creating a recipe. Location points to the initial job. Does not publish.'
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '202':
+          description: Persist original input and enqueue processing
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportAccepted'
+          headers:
+            Location:
+              description: Relative URL of the created or polled resource.
+              schema:
+                type: string
+            X-Request-ID:
+              schema:
+                type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[A-Za-z0-9_-]+$
+                description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+              description: Unique per HTTP request; contains no secrets.
+            Idempotency-Replayed:
+              schema:
+                type: string
+                enum:
+                - 'true'
+                - 'false'
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '409':
+          $ref: '#/components/responses/Error409'
+        '413':
+          $ref: '#/components/responses/Error413'
+        '415':
+          $ref: '#/components/responses/Error415'
+        '422':
+          $ref: '#/components/responses/Error422'
+        '429':
+          $ref: '#/components/responses/Error429'
+        '500':
+          $ref: '#/components/responses/Error500'
+        '503':
+          $ref: '#/components/responses/Error503'
+        default:
+          description: Other failures use the same envelope. Clients must tolerate unknown error codes.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          headers:
+            X-Request-ID:
+              schema:
+                type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[A-Za-z0-9_-]+$
+                description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+              description: Unique per HTTP request; contains no secrets.
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/JsonImport'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ImageImport'
+            encoding:
+              metadata:
+                contentType: application/json
+              image_1:
+                contentType: image/jpeg, image/png
+              image_2:
+                contentType: image/jpeg, image/png
+              image_3:
+                contentType: image/jpeg, image/png
+              image_4:
+                contentType: image/jpeg, image/png
+              image_5:
+                contentType: image/jpeg, image/png
+              image_6:
+                contentType: image/jpeg, image/png
+  /api/v1/recipes:
+    get:
+      operationId: listRecipes
+      summary: List the shared library
+      tags:
+      - Recipes
+      description: Ordered by immutable (created_at DESC, id DESC), bounded by first-page high-water tuple. Rows
+        reflect read-time values, not a historical snapshot. For cache reconciliation traverse visibility=all, apply
+        explicit archived_at, and never delete solely because an item is absent. New recipes above the bound appear
+        on the next traversal. See x-contract.pagination.
+      parameters:
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Cursor'
+      - name: visibility
+        in: query
+        schema:
+          type: string
+          enum:
+          - active
+          - archived
+          - all
+          default: active
+      responses:
+        '200':
+          description: List the shared library
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecipesPage'
+          headers:
+            X-Request-ID:
+              schema:
+                type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[A-Za-z0-9_-]+$
+                description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+              description: Unique per HTTP request; contains no secrets.
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '429':
+          $ref: '#/components/responses/Error429'
+        '500':
+          $ref: '#/components/responses/Error500'
+        default:
+          description: Other failures use the same envelope. Clients must tolerate unknown error codes.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          headers:
+            X-Request-ID:
+              schema:
+                type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[A-Za-z0-9_-]+$
+                description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+              description: Unique per HTTP request; contains no secrets.
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+        '422':
+          $ref: '#/components/responses/Error422'
+  /api/v1/recipes/{recipe_id}:
+    get:
+      operationId: getRecipe
+      summary: Get current document and processing summary
+      tags:
+      - Recipes
+      description: Get current document and processing summary
+      parameters:
+      - name: recipe_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Id'
+      responses:
+        '200':
+          description: Get current document and processing summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Recipe'
+          headers:
+            X-Request-ID:
+              schema:
+                type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[A-Za-z0-9_-]+$
+                description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+              description: Unique per HTTP request; contains no secrets.
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '429':
+          $ref: '#/components/responses/Error429'
+        '500':
+          $ref: '#/components/responses/Error500'
+        default:
+          description: Other failures use the same envelope. Clients must tolerate unknown error codes.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          headers:
+            X-Request-ID:
+              schema:
+                type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[A-Za-z0-9_-]+$
+                description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+              description: Unique per HTTP request; contains no secrets.
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+        '422':
+          $ref: '#/components/responses/Error422'
+  /api/v1/recipes/{recipe_id}/revisions:
+    get:
+      operationId: listRevisions
+      summary: List revision history or pending candidates
+      tags:
+      - Recipes
+      description: Ordered created_at DESC,id DESC. is_candidate means extraction revision never accepted and not
+        current; previously accepted revisions remain history, not candidates. Membership requires an acceptance
+        record/history in the domain layer.
+      parameters:
+      - name: recipe_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Id'
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Cursor'
+      - name: scope
+        in: query
+        schema:
+          type: string
+          enum:
+          - all
+          - candidates
+          default: all
+      responses:
+        '200':
+          description: List revision history or pending candidates
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RevisionsPage'
+          headers:
+            X-Request-ID:
+              schema:
+                type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[A-Za-z0-9_-]+$
+                description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+              description: Unique per HTTP request; contains no secrets.
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '429':
+          $ref: '#/components/responses/Error429'
+        '500':
+          $ref: '#/components/responses/Error500'
+        default:
+          description: Other failures use the same envelope. Clients must tolerate unknown error codes.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          headers:
+            X-Request-ID:
+              schema:
+                type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[A-Za-z0-9_-]+$
+                description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+              description: Unique per HTTP request; contains no secrets.
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+        '422':
+          $ref: '#/components/responses/Error422'
+    post:
+      operationId: saveRevision
+      summary: Save Markdown and atomically enqueue rendering
+      tags:
+      - Recipes
+      description: Validate the same erecipe/v1 grammar used for extraction; title is derived from Markdown. Check
+        expected_lock_version atomically, create immutable revision, increment lock, and enqueue render. Inherits
+        source association. No LLM call or publication. Archived recipes return 409 recipe_archived. Requires an
+        existing current revision; otherwise 409 revision_unavailable. Location identifies the new revision.
+      parameters:
+      - name: recipe_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Id'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '201':
+          description: Save Markdown and atomically enqueue rendering
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RevisionSaved'
+          headers:
+            Location:
+              description: Relative URL of the created or polled resource.
+              schema:
+                type: string
+            X-Request-ID:
+              schema:
+                type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[A-Za-z0-9_-]+$
+                description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+              description: Unique per HTTP request; contains no secrets.
+            Idempotency-Replayed:
+              schema:
+                type: string
+                enum:
+                - 'true'
+                - 'false'
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '409':
+          $ref: '#/components/responses/Error409'
+        '413':
+          $ref: '#/components/responses/Error413'
+        '422':
+          $ref: '#/components/responses/Error422'
+        '429':
+          $ref: '#/components/responses/Error429'
+        '500':
+          $ref: '#/components/responses/Error500'
+        default:
+          description: Other failures use the same envelope. Clients must tolerate unknown error codes.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          headers:
+            X-Request-ID:
+              schema:
+                type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[A-Za-z0-9_-]+$
+                description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+              description: Unique per HTTP request; contains no secrets.
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EditRevision'
+  /api/v1/revisions/{revision_id}:
+    get:
+      operationId: getRevision
+      summary: Get exact immutable Markdown with current/candidate annotations
+      tags:
+      - Revisions
+      description: Get exact immutable Markdown with current/candidate annotations
+      parameters:
+      - name: revision_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Id'
+      responses:
+        '200':
+          description: Get exact immutable Markdown with current/candidate annotations
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Revision'
+          headers:
+            X-Request-ID:
+              schema:
+                type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[A-Za-z0-9_-]+$
+                description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+              description: Unique per HTTP request; contains no secrets.
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '429':
+          $ref: '#/components/responses/Error429'
+        '500':
+          $ref: '#/components/responses/Error500'
+        default:
+          description: Other failures use the same envelope. Clients must tolerate unknown error codes.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          headers:
+            X-Request-ID:
+              schema:
+                type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[A-Za-z0-9_-]+$
+                description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+              description: Unique per HTTP request; contains no secrets.
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+        '422':
+          $ref: '#/components/responses/Error422'
+  /api/v1/recipes/{recipe_id}/accept:
+    post:
+      operationId: acceptCandidate
+      summary: Accept a pending candidate with conflict protection
+      tags:
+      - Recipes
+      description: 'Candidate must belong to recipe and be pending. Atomic expected_lock_version check, current-pointer
+        update, acceptance record and lock increment. Ensure default render: return existing complete set or queued/running
+        render job. Accepting an unrenderable candidate is allowed; preview may fail. Old accepted revisions cannot
+        be restored using this route. Does not publish.'
+      parameters:
+      - name: recipe_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Id'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Accept a pending candidate with conflict protection
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RevisionAccepted'
+          headers:
+            X-Request-ID:
+              schema:
+                type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[A-Za-z0-9_-]+$
+                description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+              description: Unique per HTTP request; contains no secrets.
+            Idempotency-Replayed:
+              schema:
+                type: string
+                enum:
+                - 'true'
+                - 'false'
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '409':
+          $ref: '#/components/responses/Error409'
+        '429':
+          $ref: '#/components/responses/Error429'
+        '500':
+          $ref: '#/components/responses/Error500'
+        default:
+          description: Other failures use the same envelope. Clients must tolerate unknown error codes.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          headers:
+            X-Request-ID:
+              schema:
+                type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[A-Za-z0-9_-]+$
+                description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+              description: Unique per HTTP request; contains no secrets.
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+        '422':
+          $ref: '#/components/responses/Error422'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AcceptRevision'
+  /api/v1/recipes/{recipe_id}/archive:
+    post:
+      operationId: archiveRecipe
+      summary: Archive a recipe without deleting evidence or changing the reader
+      tags:
+      - Recipes
+      description: Atomically check expected_lock_version, mark archive time, increment lock, cancel active jobs
+        and prevent further result commits for this recipe. Reads/history/assets remain available. New edits, processing,
+        acceptance and publication return 409 recipe_archived. Current reader selection remains unchanged. Same-key
+        retries replay success; a new key on an already archived recipe returns 409 recipe_archived. Restore/hard
+        deletion are deferred.
+      parameters:
+      - name: recipe_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Id'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Archive a recipe without deleting evidence or changing the reader
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecipeArchived'
+          headers:
+            X-Request-ID:
+              schema:
+                type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[A-Za-z0-9_-]+$
+                description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+              description: Unique per HTTP request; contains no secrets.
+            Idempotency-Replayed:
+              schema:
+                type: string
+                enum:
+                - 'true'
+                - 'false'
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '409':
+          $ref: '#/components/responses/Error409'
+        '429':
+          $ref: '#/components/responses/Error429'
+        '500':
+          $ref: '#/components/responses/Error500'
+        default:
+          description: Other failures use the same envelope. Clients must tolerate unknown error codes.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          headers:
+            X-Request-ID:
+              schema:
+                type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[A-Za-z0-9_-]+$
+                description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+              description: Unique per HTTP request; contains no secrets.
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+        '422':
+          $ref: '#/components/responses/Error422'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ArchiveRecipe'
+      x-required-capability: archive
+  /api/v1/recipes/{recipe_id}/extract:
+    post:
+      operationId: extractRecipe
+      summary: Extract source into a candidate
+      tags:
+      - Recipes
+      description: 'Use a completed saved capture without fetching it again; produces a candidate when current exists.
+        Incomplete capture: 409 capture_incomplete. Archived recipes return 409 recipe_archived. Location points
+        to job.'
+      parameters:
+      - name: recipe_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Id'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '202':
+          description: Extract source into a candidate
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkAccepted'
+          headers:
+            Location:
+              description: Relative URL of the created or polled resource.
+              schema:
+                type: string
+            X-Request-ID:
+              schema:
+                type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[A-Za-z0-9_-]+$
+                description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+              description: Unique per HTTP request; contains no secrets.
+            Idempotency-Replayed:
+              schema:
+                type: string
+                enum:
+                - 'true'
+                - 'false'
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '409':
+          $ref: '#/components/responses/Error409'
+        '422':
+          $ref: '#/components/responses/Error422'
+        '429':
+          $ref: '#/components/responses/Error429'
+        '500':
+          $ref: '#/components/responses/Error500'
+        default:
+          description: Other failures use the same envelope. Clients must tolerate unknown error codes.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          headers:
+            X-Request-ID:
+              schema:
+                type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[A-Za-z0-9_-]+$
+                description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+              description: Unique per HTTP request; contains no secrets.
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CaptureRequest'
+  /api/v1/recipes/{recipe_id}/refresh:
+    post:
+      operationId: refreshRecipe
+      summary: Refresh source into a candidate
+      tags:
+      - Recipes
+      description: 'Only a URL capture is eligible. Create a new linked pending capture with the exact submitted
+        URL and enqueue capture; completed/failed old evidence stays immutable. Images/text: 422 refresh_unsupported.
+        Archived recipes return 409 recipe_archived. Location points to job.'
+      parameters:
+      - name: recipe_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Id'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '202':
+          description: Refresh source into a candidate
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkAccepted'
+          headers:
+            Location:
+              description: Relative URL of the created or polled resource.
+              schema:
+                type: string
+            X-Request-ID:
+              schema:
+                type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[A-Za-z0-9_-]+$
+                description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+              description: Unique per HTTP request; contains no secrets.
+            Idempotency-Replayed:
+              schema:
+                type: string
+                enum:
+                - 'true'
+                - 'false'
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '409':
+          $ref: '#/components/responses/Error409'
+        '422':
+          $ref: '#/components/responses/Error422'
+        '429':
+          $ref: '#/components/responses/Error429'
+        '500':
+          $ref: '#/components/responses/Error500'
+        default:
+          description: Other failures use the same envelope. Clients must tolerate unknown error codes.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          headers:
+            X-Request-ID:
+              schema:
+                type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[A-Za-z0-9_-]+$
+                description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+              description: Unique per HTTP request; contains no secrets.
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CaptureRequest'
+      x-required-capability: source_refresh
+  /api/v1/revisions/{revision_id}/render:
+    post:
+      operationId: ensureRender
+      summary: Ensure a render for this exact revision and profile
+      tags:
+      - Revisions
+      description: Return 200 ready for a complete cache hit; otherwise 202 with queued/running render job. Failed
+        renders require a new request or eligible job retry. No source fetch, LLM call, current-pointer change or
+        publication. Archived recipes return 409 recipe_archived.
+      parameters:
+      - name: revision_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Id'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '202':
+          description: Ensure a render for this exact revision and profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RenderResult'
+          headers:
+            Location:
+              description: Relative URL of the created or polled resource.
+              schema:
+                type: string
+            X-Request-ID:
+              schema:
+                type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[A-Za-z0-9_-]+$
+                description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+              description: Unique per HTTP request; contains no secrets.
+            Idempotency-Replayed:
+              schema:
+                type: string
+                enum:
+                - 'true'
+                - 'false'
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '409':
+          $ref: '#/components/responses/Error409'
+        '422':
+          $ref: '#/components/responses/Error422'
+        '429':
+          $ref: '#/components/responses/Error429'
+        '500':
+          $ref: '#/components/responses/Error500'
+        default:
+          description: Other failures use the same envelope. Clients must tolerate unknown error codes.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          headers:
+            X-Request-ID:
+              schema:
+                type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[A-Za-z0-9_-]+$
+                description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+              description: Unique per HTTP request; contains no secrets.
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+        '200':
+          description: Complete render is already available.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RenderResult'
+          headers:
+            X-Request-ID:
+              schema:
+                type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[A-Za-z0-9_-]+$
+                description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+              description: Unique per HTTP request; contains no secrets.
+            Idempotency-Replayed:
+              schema:
+                type: string
+                enum:
+                - 'true'
+                - 'false'
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RenderRequest'
+  /api/v1/recipes/{recipe_id}/jobs:
+    get:
+      operationId: listRecipeJobs
+      summary: List stage jobs for a recipe
+      tags:
+      - Recipes
+      description: List stage jobs for a recipe
+      parameters:
+      - name: recipe_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Id'
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: List stage jobs for a recipe
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobsPage'
+          headers:
+            X-Request-ID:
+              schema:
+                type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[A-Za-z0-9_-]+$
+                description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+              description: Unique per HTTP request; contains no secrets.
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '429':
+          $ref: '#/components/responses/Error429'
+        '500':
+          $ref: '#/components/responses/Error500'
+        default:
+          description: Other failures use the same envelope. Clients must tolerate unknown error codes.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          headers:
+            X-Request-ID:
+              schema:
+                type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[A-Za-z0-9_-]+$
+                description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+              description: Unique per HTTP request; contains no secrets.
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+        '422':
+          $ref: '#/components/responses/Error422'
+  /api/v1/jobs/{job_id}:
+    get:
+      operationId: getJob
+      summary: Get a stage, result and downstream jobs
+      tags:
+      - Jobs
+      description: Stage success is not workflow success. Capture/extract success and dependent enqueue commit atomically.
+        Poll downstream jobs or recipe summary, starting every 2 seconds and backing off to 10 seconds while unchanged;
+        pause/background according to iOS execution constraints.
+      parameters:
+      - name: job_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Id'
+      responses:
+        '200':
+          description: Get a stage, result and downstream jobs
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Job'
+          headers:
+            X-Request-ID:
+              schema:
+                type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[A-Za-z0-9_-]+$
+                description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+              description: Unique per HTTP request; contains no secrets.
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '429':
+          $ref: '#/components/responses/Error429'
+        '500':
+          $ref: '#/components/responses/Error500'
+        default:
+          description: Other failures use the same envelope. Clients must tolerate unknown error codes.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          headers:
+            X-Request-ID:
+              schema:
+                type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[A-Za-z0-9_-]+$
+                description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+              description: Unique per HTTP request; contains no secrets.
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+        '422':
+          $ref: '#/components/responses/Error422'
+  /api/v1/jobs/{job_id}/retry:
+    post:
+      operationId: retryJob
+      summary: Requeue an eligible failed stage
+      tags:
+      - Jobs
+      description: Only failed extract/render jobs with retry_allowed=true; same job ID, retained attempts, capped
+        at five total attempts. Capture failures require refresh into a new capture. Missing configuration should
+        be corrected first. New-key retry of nonfailed work returns 409 job_not_retryable. Location points to job.
+      parameters:
+      - name: job_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Id'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '202':
+          description: Requeue an eligible failed stage
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Job'
+          headers:
+            Location:
+              description: Relative URL of the created or polled resource.
+              schema:
+                type: string
+            X-Request-ID:
+              schema:
+                type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[A-Za-z0-9_-]+$
+                description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+              description: Unique per HTTP request; contains no secrets.
+            Idempotency-Replayed:
+              schema:
+                type: string
+                enum:
+                - 'true'
+                - 'false'
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '409':
+          $ref: '#/components/responses/Error409'
+        '429':
+          $ref: '#/components/responses/Error429'
+        '500':
+          $ref: '#/components/responses/Error500'
+        default:
+          description: Other failures use the same envelope. Clients must tolerate unknown error codes.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          headers:
+            X-Request-ID:
+              schema:
+                type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[A-Za-z0-9_-]+$
+                description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+              description: Unique per HTTP request; contains no secrets.
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+        '422':
+          $ref: '#/components/responses/Error422'
+  /api/v1/jobs/{job_id}/cancel:
+    post:
+      operationId: cancelJob
+      summary: Cancel this stage and its active descendants
+      tags:
+      - Jobs
+      description: Cancel queued/running target and all queued/running descendants atomically; fence any running
+        attempt so it cannot commit. A succeeded ancestor may cancel active descendants and retains succeeded status.
+        Already cancelled with no active descendants returns 200. Terminal tree without active work otherwise returns
+        409 job_not_cancellable. Preserve all evidence and completed revisions/renders. Interrupted pending captures
+        become failed with capture_cancelled; a refresh is required. No promise that an upstream billable call can
+        be stopped.
+      parameters:
+      - name: job_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Id'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Cancel this stage and its active descendants
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Job'
+          headers:
+            X-Request-ID:
+              schema:
+                type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[A-Za-z0-9_-]+$
+                description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+              description: Unique per HTTP request; contains no secrets.
+            Idempotency-Replayed:
+              schema:
+                type: string
+                enum:
+                - 'true'
+                - 'false'
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '409':
+          $ref: '#/components/responses/Error409'
+        '429':
+          $ref: '#/components/responses/Error429'
+        '500':
+          $ref: '#/components/responses/Error500'
+        default:
+          description: Other failures use the same envelope. Clients must tolerate unknown error codes.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          headers:
+            X-Request-ID:
+              schema:
+                type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[A-Za-z0-9_-]+$
+                description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+              description: Unique per HTTP request; contains no secrets.
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+        '422':
+          $ref: '#/components/responses/Error422'
+  /api/v1/jobs/{job_id}/attempts:
+    get:
+      operationId: listAttempts
+      summary: Inspect execution attempts
+      tags:
+      - Jobs
+      description: Ordered attempt_number ASC, id ASC with a first-page bound.
+      parameters:
+      - name: job_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Id'
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Inspect execution attempts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttemptsPage'
+          headers:
+            X-Request-ID:
+              schema:
+                type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[A-Za-z0-9_-]+$
+                description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+              description: Unique per HTTP request; contains no secrets.
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '429':
+          $ref: '#/components/responses/Error429'
+        '500':
+          $ref: '#/components/responses/Error500'
+        default:
+          description: Other failures use the same envelope. Clients must tolerate unknown error codes.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          headers:
+            X-Request-ID:
+              schema:
+                type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[A-Za-z0-9_-]+$
+                description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+              description: Unique per HTTP request; contains no secrets.
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+        '422':
+          $ref: '#/components/responses/Error422'
+  /api/v1/attempts/{attempt_id}/llm-calls:
+    get:
+      operationId: listLlmCalls
+      summary: Inspect individual provider invocations
+      tags:
+      - Attempts
+      description: Ordered sequence ASC, id ASC. Every invocation is separate, including failed/correction calls.
+        Download full stored requests/responses through authenticated assets.
+      parameters:
+      - name: attempt_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Id'
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Inspect individual provider invocations
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LlmCallsPage'
+          headers:
+            X-Request-ID:
+              schema:
+                type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[A-Za-z0-9_-]+$
+                description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+              description: Unique per HTTP request; contains no secrets.
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '429':
+          $ref: '#/components/responses/Error429'
+        '500':
+          $ref: '#/components/responses/Error500'
+        default:
+          description: Other failures use the same envelope. Clients must tolerate unknown error codes.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          headers:
+            X-Request-ID:
+              schema:
+                type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[A-Za-z0-9_-]+$
+                description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+              description: Unique per HTTP request; contains no secrets.
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+        '422':
+          $ref: '#/components/responses/Error422'
+  /api/v1/llm-calls/{call_id}:
+    get:
+      operationId: getLlmCall
+      summary: Inspect one provider invocation
+      tags:
+      - Llm-calls
+      description: Inspect one provider invocation
+      parameters:
+      - name: call_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Id'
+      responses:
+        '200':
+          description: Inspect one provider invocation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LlmCall'
+          headers:
+            X-Request-ID:
+              schema:
+                type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[A-Za-z0-9_-]+$
+                description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+              description: Unique per HTTP request; contains no secrets.
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '429':
+          $ref: '#/components/responses/Error429'
+        '500':
+          $ref: '#/components/responses/Error500'
+        default:
+          description: Other failures use the same envelope. Clients must tolerate unknown error codes.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          headers:
+            X-Request-ID:
+              schema:
+                type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[A-Za-z0-9_-]+$
+                description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+              description: Unique per HTTP request; contains no secrets.
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+        '422':
+          $ref: '#/components/responses/Error422'
+  /api/v1/recipes/{recipe_id}/source-captures:
+    get:
+      operationId: listSourceCaptures
+      summary: List preserved source evidence
+      tags:
+      - Recipes
+      description: Ordered submitted_at DESC,id DESC; image attachment ordinals are zero-based.
+      parameters:
+      - name: recipe_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Id'
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: List preserved source evidence
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CapturesPage'
+          headers:
+            X-Request-ID:
+              schema:
+                type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[A-Za-z0-9_-]+$
+                description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+              description: Unique per HTTP request; contains no secrets.
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '429':
+          $ref: '#/components/responses/Error429'
+        '500':
+          $ref: '#/components/responses/Error500'
+        default:
+          description: Other failures use the same envelope. Clients must tolerate unknown error codes.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          headers:
+            X-Request-ID:
+              schema:
+                type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[A-Za-z0-9_-]+$
+                description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+              description: Unique per HTTP request; contains no secrets.
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+        '422':
+          $ref: '#/components/responses/Error422'
+  /api/v1/source-captures/{capture_id}:
+    get:
+      operationId: getSourceCapture
+      summary: Get one source capture and its assets
+      tags:
+      - Source-captures
+      description: Get one source capture and its assets
+      parameters:
+      - name: capture_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Id'
+      responses:
+        '200':
+          description: Get one source capture and its assets
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SourceCapture'
+          headers:
+            X-Request-ID:
+              schema:
+                type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[A-Za-z0-9_-]+$
+                description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+              description: Unique per HTTP request; contains no secrets.
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '429':
+          $ref: '#/components/responses/Error429'
+        '500':
+          $ref: '#/components/responses/Error500'
+        default:
+          description: Other failures use the same envelope. Clients must tolerate unknown error codes.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          headers:
+            X-Request-ID:
+              schema:
+                type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[A-Za-z0-9_-]+$
+                description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+              description: Unique per HTTP request; contains no secrets.
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+        '422':
+          $ref: '#/components/responses/Error422'
+  /api/v1/revisions/{revision_id}/render-sets:
+    get:
+      operationId: listRenderSets
+      summary: List complete render sets for a revision
+      tags:
+      - Revisions
+      description: List complete render sets for a revision
+      parameters:
+      - name: revision_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Id'
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: List complete render sets for a revision
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RenderSetsPage'
+          headers:
+            X-Request-ID:
+              schema:
+                type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[A-Za-z0-9_-]+$
+                description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+              description: Unique per HTTP request; contains no secrets.
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '429':
+          $ref: '#/components/responses/Error429'
+        '500':
+          $ref: '#/components/responses/Error500'
+        default:
+          description: Other failures use the same envelope. Clients must tolerate unknown error codes.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          headers:
+            X-Request-ID:
+              schema:
+                type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[A-Za-z0-9_-]+$
+                description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+              description: Unique per HTTP request; contains no secrets.
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+        '422':
+          $ref: '#/components/responses/Error422'
+  /api/v1/render-sets/{render_set_id}:
+    get:
+      operationId: getRenderSet
+      summary: Get complete ordered preview pages
+      tags:
+      - Render-sets
+      description: Get complete ordered preview pages
+      parameters:
+      - name: render_set_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Id'
+      responses:
+        '200':
+          description: Get complete ordered preview pages
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RenderSet'
+          headers:
+            X-Request-ID:
+              schema:
+                type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[A-Za-z0-9_-]+$
+                description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+              description: Unique per HTTP request; contains no secrets.
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '429':
+          $ref: '#/components/responses/Error429'
+        '500':
+          $ref: '#/components/responses/Error500'
+        default:
+          description: Other failures use the same envelope. Clients must tolerate unknown error codes.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          headers:
+            X-Request-ID:
+              schema:
+                type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[A-Za-z0-9_-]+$
+                description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+              description: Unique per HTTP request; contains no secrets.
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+        '422':
+          $ref: '#/components/responses/Error422'
+  /api/v1/assets/{asset_id}:
+    get:
+      operationId: getAsset
+      summary: Download an authenticated immutable asset
+      tags:
+      - Assets
+      description: 'Validate bearer token before conditional-cache handling. Strong ETag is quoted full SHA-256.
+        Matching If-None-Match (including wildcard/list/weak validator comparison for GET) returns 304 with no body.
+        Cache-Control: private, max-age=31536000, immutable. No byte-range support promised; may return full 200.
+        Only image/png and image/jpeg may be inline; all other content is attachment with a server-generated safe
+        filename. Always nosniff; HTML additionally sandbox CSP. Do not load archived markup in an executable WebView.
+        Clients partition cache by server_id and clear private content on disconnect.'
+      parameters:
+      - name: asset_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Id'
+      - name: If-None-Match
+        in: header
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Complete asset bytes.
+          headers:
+            ETag:
+              schema:
+                type: string
+            Content-Length:
+              schema:
+                type: integer
+                minimum: 0
+            Cache-Control:
+              schema:
+                type: string
+            Content-Disposition:
+              schema:
+                type: string
+            X-Content-Type-Options:
+              schema:
+                type: string
+                enum:
+                - nosniff
+            X-Request-ID:
+              schema:
+                type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[A-Za-z0-9_-]+$
+                description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+              description: Unique per HTTP request; contains no secrets.
+          content:
+            '*/*':
+              schema:
+                type: string
+                format: binary
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '429':
+          $ref: '#/components/responses/Error429'
+        '500':
+          $ref: '#/components/responses/Error500'
+        default:
+          description: Other failures use the same envelope. Clients must tolerate unknown error codes.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          headers:
+            X-Request-ID:
+              schema:
+                type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[A-Za-z0-9_-]+$
+                description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+              description: Unique per HTTP request; contains no secrets.
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+        '304':
+          description: Authenticated conditional request matched; no body. ETag and Cache-Control retained.
+          headers:
+            ETag:
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+            X-Request-ID:
+              schema:
+                type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[A-Za-z0-9_-]+$
+                description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+              description: Unique per HTTP request; contains no secrets.
+        '422':
+          $ref: '#/components/responses/Error422'
+  /api/v1/publications:
+    post:
+      operationId: createPublication
+      summary: Explicitly select an exact complete render page
+      tags:
+      - Publications
+      description: 'Atomically commit publication history and device selection. Verify complete set and existing
+        one-based page, recipe not archived, and paired device. Missing page: 422 page_not_found; unpaired: 409
+        device_not_paired. Any retained revision/candidate may be explicitly selected. Last committed distinct send
+        wins; same-key replay never reselects an old image or adds history. Response confirms selection only. Location
+        points to /api/v1/device; replay may no longer be the selected publication.'
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '201':
+          description: Explicitly select an exact complete render page
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicationCreated'
+          headers:
+            Location:
+              description: Relative URL of the created or polled resource.
+              schema:
+                type: string
+            X-Request-ID:
+              schema:
+                type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[A-Za-z0-9_-]+$
+                description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+              description: Unique per HTTP request; contains no secrets.
+            Idempotency-Replayed:
+              schema:
+                type: string
+                enum:
+                - 'true'
+                - 'false'
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '409':
+          $ref: '#/components/responses/Error409'
+        '422':
+          $ref: '#/components/responses/Error422'
+        '429':
+          $ref: '#/components/responses/Error429'
+        '500':
+          $ref: '#/components/responses/Error500'
+        '503':
+          $ref: '#/components/responses/Error503'
+        default:
+          description: Other failures use the same envelope. Clients must tolerate unknown error codes.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          headers:
+            X-Request-ID:
+              schema:
+                type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[A-Za-z0-9_-]+$
+                description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+              description: Unique per HTTP request; contains no secrets.
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PublishPage'
+      x-required-capability: publication
+  /api/v1/device:
+    get:
+      operationId: getDevice
+      summary: Get selection and available fetch/check-in evidence
+      tags:
+      - Device
+      description: Get selection and available fetch/check-in evidence
+      parameters: []
+      responses:
+        '200':
+          description: Get selection and available fetch/check-in evidence
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Device'
+          headers:
+            X-Request-ID:
+              schema:
+                type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[A-Za-z0-9_-]+$
+                description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+              description: Unique per HTTP request; contains no secrets.
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '429':
+          $ref: '#/components/responses/Error429'
+        '500':
+          $ref: '#/components/responses/Error500'
+        default:
+          description: Other failures use the same envelope. Clients must tolerate unknown error codes.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          headers:
+            X-Request-ID:
+              schema:
+                type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[A-Za-z0-9_-]+$
+                description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+              description: Unique per HTTP request; contains no secrets.
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+        '422':
+          $ref: '#/components/responses/Error422'
+  /control/v1/users:
+    get:
+      operationId: listUsers
+      summary: List user accounts
+      tags:
+      - Administration
+      description: List user accounts
+      parameters:
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: List local user accounts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsersPage'
+          headers:
+            X-Request-ID:
+              schema:
+                type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[A-Za-z0-9_-]+$
+                description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+              description: Unique per HTTP request; contains no secrets.
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+        '400':
+          $ref: '#/components/responses/Error400'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '429':
+          $ref: '#/components/responses/Error429'
+        '500':
+          $ref: '#/components/responses/Error500'
+        default:
+          description: Other failures use the same envelope. Clients must tolerate unknown error codes.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          headers:
+            X-Request-ID:
+              schema:
+                type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[A-Za-z0-9_-]+$
+                description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+              description: Unique per HTTP request; contains no secrets.
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+        '422':
+          $ref: '#/components/responses/Error422'
+      security: []
+      x-access-boundary: 'Tailnet access rules permit reachability through the configured Tailscale Serve HTTPS
+        origin and dedicated trusted proxy ingress. No application login, identity-header requirement or administrator
+        allowlist. POST also requires exact Origin and X-eRecipe-Control: 1. Direct LAN access is forbidden. See
+        x-contract.dashboard_access and dashboard_csrf.'
+    post:
+      operationId: createUser
+      summary: Create a shared-library identity
+      tags:
+      - Administration
+      description: No credential issued until enrollment is redeemed. Duplicate display names are allowed; IDs identify
+        accounts. Available through the Serve dashboard. Location identifies /control/v1/users/{id}.
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      - $ref: '#/components/parameters/ControlHeader'
+      - $ref: '#/components/parameters/DashboardOrigin'
+      responses:
+        '201':
+          description: Create a shared-library identity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUser'
+          headers:
+            Location:
+              description: Relative URL of the created or polled resource.
+              schema:
+                type: string
+            X-Request-ID:
+              schema:
+                type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[A-Za-z0-9_-]+$
+                description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+              description: Unique per HTTP request; contains no secrets.
+            Idempotency-Replayed:
+              schema:
+                type: string
+                enum:
+                - 'true'
+                - 'false'
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+        '400':
+          $ref: '#/components/responses/Error400'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '413':
+          $ref: '#/components/responses/Error413'
+        '422':
+          $ref: '#/components/responses/Error422'
+        '429':
+          $ref: '#/components/responses/Error429'
+        '500':
+          $ref: '#/components/responses/Error500'
+        default:
+          description: Other failures use the same envelope. Clients must tolerate unknown error codes.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          headers:
+            X-Request-ID:
+              schema:
+                type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[A-Za-z0-9_-]+$
+                description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+              description: Unique per HTTP request; contains no secrets.
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+      security: []
+      x-access-boundary: 'Tailnet access rules permit reachability through the configured Tailscale Serve HTTPS
+        origin and dedicated trusted proxy ingress. No application login, identity-header requirement or administrator
+        allowlist. POST also requires exact Origin and X-eRecipe-Control: 1. Direct LAN access is forbidden. See
+        x-contract.dashboard_access and dashboard_csrf.'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUser'
+  /control/v1/users/{user_id}:
+    get:
+      operationId: getUser
+      summary: Inspect a user account
+      tags:
+      - Administration
+      description: Inspect a user account
+      parameters:
+      - name: user_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Id'
+      responses:
+        '200':
+          description: Inspect a local user account
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUser'
+          headers:
+            X-Request-ID:
+              schema:
+                type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[A-Za-z0-9_-]+$
+                description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+              description: Unique per HTTP request; contains no secrets.
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+        '400':
+          $ref: '#/components/responses/Error400'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '429':
+          $ref: '#/components/responses/Error429'
+        '500':
+          $ref: '#/components/responses/Error500'
+        default:
+          description: Other failures use the same envelope. Clients must tolerate unknown error codes.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          headers:
+            X-Request-ID:
+              schema:
+                type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[A-Za-z0-9_-]+$
+                description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+              description: Unique per HTTP request; contains no secrets.
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+        '422':
+          $ref: '#/components/responses/Error422'
+      security: []
+      x-access-boundary: 'Tailnet access rules permit reachability through the configured Tailscale Serve HTTPS
+        origin and dedicated trusted proxy ingress. No application login, identity-header requirement or administrator
+        allowlist. POST also requires exact Origin and X-eRecipe-Control: 1. Direct LAN access is forbidden. See
+        x-contract.dashboard_access and dashboard_csrf.'
+  /control/v1/users/{user_id}/disable:
+    post:
+      operationId: disableUser
+      summary: Disable an account and invalidate its access
+      tags:
+      - Administration
+      description: Atomically disable user, revoke all credentials and pending enrollments. Preserve authorship
+        and library content. Repeated disable is successful. Re-enable is deferred.
+      parameters:
+      - name: user_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Id'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      - $ref: '#/components/parameters/ControlHeader'
+      - $ref: '#/components/parameters/DashboardOrigin'
+      responses:
+        '200':
+          description: Disable an account and invalidate its access
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUser'
+          headers:
+            X-Request-ID:
+              schema:
+                type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[A-Za-z0-9_-]+$
+                description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+              description: Unique per HTTP request; contains no secrets.
+            Idempotency-Replayed:
+              schema:
+                type: string
+                enum:
+                - 'true'
+                - 'false'
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+        '400':
+          $ref: '#/components/responses/Error400'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '429':
+          $ref: '#/components/responses/Error429'
+        '500':
+          $ref: '#/components/responses/Error500'
+        default:
+          description: Other failures use the same envelope. Clients must tolerate unknown error codes.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          headers:
+            X-Request-ID:
+              schema:
+                type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[A-Za-z0-9_-]+$
+                description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+              description: Unique per HTTP request; contains no secrets.
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+        '422':
+          $ref: '#/components/responses/Error422'
+      security: []
+      x-access-boundary: 'Tailnet access rules permit reachability through the configured Tailscale Serve HTTPS
+        origin and dedicated trusted proxy ingress. No application login, identity-header requirement or administrator
+        allowlist. POST also requires exact Origin and X-eRecipe-Control: 1. Direct LAN access is forbidden. See
+        x-contract.dashboard_access and dashboard_csrf.'
+  /control/v1/users/{user_id}/credentials:
+    get:
+      operationId: listCredentials
+      summary: List credentials without bearer secrets
+      tags:
+      - Administration
+      description: List credentials without bearer secrets
+      parameters:
+      - name: user_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Id'
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: List credentials without bearer secrets
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CredentialsPage'
+          headers:
+            X-Request-ID:
+              schema:
+                type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[A-Za-z0-9_-]+$
+                description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+              description: Unique per HTTP request; contains no secrets.
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+        '400':
+          $ref: '#/components/responses/Error400'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '429':
+          $ref: '#/components/responses/Error429'
+        '500':
+          $ref: '#/components/responses/Error500'
+        default:
+          description: Other failures use the same envelope. Clients must tolerate unknown error codes.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          headers:
+            X-Request-ID:
+              schema:
+                type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[A-Za-z0-9_-]+$
+                description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+              description: Unique per HTTP request; contains no secrets.
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+        '422':
+          $ref: '#/components/responses/Error422'
+      security: []
+      x-access-boundary: 'Tailnet access rules permit reachability through the configured Tailscale Serve HTTPS
+        origin and dedicated trusted proxy ingress. No application login, identity-header requirement or administrator
+        allowlist. POST also requires exact Origin and X-eRecipe-Control: 1. Direct LAN access is forbidden. See
+        x-contract.dashboard_access and dashboard_csrf.'
+  /control/v1/credentials/{credential_id}/revoke:
+    post:
+      operationId: revokeCredential
+      summary: Revoke one credential
+      tags:
+      - Administration
+      description: Repeated revocation returns the existing revoked record. Does not revoke other devices.
+      parameters:
+      - name: credential_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Id'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      - $ref: '#/components/parameters/ControlHeader'
+      - $ref: '#/components/parameters/DashboardOrigin'
+      responses:
+        '200':
+          description: Revoke one credential
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Credential'
+          headers:
+            X-Request-ID:
+              schema:
+                type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[A-Za-z0-9_-]+$
+                description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+              description: Unique per HTTP request; contains no secrets.
+            Idempotency-Replayed:
+              schema:
+                type: string
+                enum:
+                - 'true'
+                - 'false'
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+        '400':
+          $ref: '#/components/responses/Error400'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '429':
+          $ref: '#/components/responses/Error429'
+        '500':
+          $ref: '#/components/responses/Error500'
+        default:
+          description: Other failures use the same envelope. Clients must tolerate unknown error codes.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          headers:
+            X-Request-ID:
+              schema:
+                type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[A-Za-z0-9_-]+$
+                description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+              description: Unique per HTTP request; contains no secrets.
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+        '422':
+          $ref: '#/components/responses/Error422'
+      security: []
+      x-access-boundary: 'Tailnet access rules permit reachability through the configured Tailscale Serve HTTPS
+        origin and dedicated trusted proxy ingress. No application login, identity-header requirement or administrator
+        allowlist. POST also requires exact Origin and X-eRecipe-Control: 1. Direct LAN access is forbidden. See
+        x-contract.dashboard_access and dashboard_csrf.'
+  /control/v1/users/{user_id}/enrollments:
+    post:
+      operationId: createEnrollment
+      summary: Create a ten-minute single-use QR enrollment
+      tags:
+      - Administration
+      description: 'Requires configured HTTPS application origin; otherwise 409 enrollment_origin_unconfigured.
+        Disabled user: 409 user_disabled. Mint 32 random bytes; store code hash only. Return deep link once, no-store.
+        New issue revokes any other pending enrollment for this user (one pending QR per user); existing credentials
+        remain active. No Idempotency-Key replay for this secret-bearing response. If response is lost, issue a
+        replacement QR. Location identifies enrollment status.'
+      parameters:
+      - name: user_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Id'
+      - $ref: '#/components/parameters/ControlHeader'
+      - $ref: '#/components/parameters/DashboardOrigin'
+      responses:
+        '201':
+          description: Create a ten-minute single-use QR enrollment
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EnrollmentCreated'
+          headers:
+            Location:
+              description: Relative URL of the created or polled resource.
+              schema:
+                type: string
+            X-Request-ID:
+              schema:
+                type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[A-Za-z0-9_-]+$
+                description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+              description: Unique per HTTP request; contains no secrets.
+            Idempotency-Replayed:
+              schema:
+                type: string
+                enum:
+                - 'true'
+                - 'false'
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+        '400':
+          $ref: '#/components/responses/Error400'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '409':
+          $ref: '#/components/responses/Error409'
+        '413':
+          $ref: '#/components/responses/Error413'
+        '422':
+          $ref: '#/components/responses/Error422'
+        '429':
+          $ref: '#/components/responses/Error429'
+        '500':
+          $ref: '#/components/responses/Error500'
+        default:
+          description: Other failures use the same envelope. Clients must tolerate unknown error codes.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          headers:
+            X-Request-ID:
+              schema:
+                type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[A-Za-z0-9_-]+$
+                description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+              description: Unique per HTTP request; contains no secrets.
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+      security: []
+      x-access-boundary: 'Tailnet access rules permit reachability through the configured Tailscale Serve HTTPS
+        origin and dedicated trusted proxy ingress. No application login, identity-header requirement or administrator
+        allowlist. POST also requires exact Origin and X-eRecipe-Control: 1. Direct LAN access is forbidden. See
+        x-contract.dashboard_access and dashboard_csrf.'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateEnrollment'
+  /control/v1/enrollments/{enrollment_id}:
+    get:
+      operationId: getEnrollment
+      summary: Get enrollment status without its code
+      tags:
+      - Administration
+      description: Dashboard polls this route to dismiss a redeemed/expired QR. redeemed returns linked credential_id,
+        including when phone lost the exchange response. No code, URL or bearer token returned.
+      parameters:
+      - name: enrollment_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Id'
+      responses:
+        '200':
+          description: Get enrollment status without its code
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Enrollment'
+          headers:
+            X-Request-ID:
+              schema:
+                type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[A-Za-z0-9_-]+$
+                description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+              description: Unique per HTTP request; contains no secrets.
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+        '400':
+          $ref: '#/components/responses/Error400'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '429':
+          $ref: '#/components/responses/Error429'
+        '500':
+          $ref: '#/components/responses/Error500'
+        default:
+          description: Other failures use the same envelope. Clients must tolerate unknown error codes.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          headers:
+            X-Request-ID:
+              schema:
+                type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[A-Za-z0-9_-]+$
+                description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+              description: Unique per HTTP request; contains no secrets.
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+        '422':
+          $ref: '#/components/responses/Error422'
+      security: []
+      x-access-boundary: 'Tailnet access rules permit reachability through the configured Tailscale Serve HTTPS
+        origin and dedicated trusted proxy ingress. No application login, identity-header requirement or administrator
+        allowlist. POST also requires exact Origin and X-eRecipe-Control: 1. Direct LAN access is forbidden. See
+        x-contract.dashboard_access and dashboard_csrf.'
+  /control/v1/enrollments/{enrollment_id}/revoke:
+    post:
+      operationId: revokeEnrollment
+      summary: Revoke a pending enrollment
+      tags:
+      - Administration
+      description: Pending becomes revoked; already revoked/expired is returned unchanged. Redeemed returns 409
+        enrollment_already_redeemed; revoke its linked credential explicitly instead.
+      parameters:
+      - name: enrollment_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Id'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      - $ref: '#/components/parameters/ControlHeader'
+      - $ref: '#/components/parameters/DashboardOrigin'
+      responses:
+        '200':
+          description: Revoke a pending enrollment
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Enrollment'
+          headers:
+            X-Request-ID:
+              schema:
+                type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[A-Za-z0-9_-]+$
+                description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+              description: Unique per HTTP request; contains no secrets.
+            Idempotency-Replayed:
+              schema:
+                type: string
+                enum:
+                - 'true'
+                - 'false'
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+        '400':
+          $ref: '#/components/responses/Error400'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '409':
+          $ref: '#/components/responses/Error409'
+        '429':
+          $ref: '#/components/responses/Error429'
+        '500':
+          $ref: '#/components/responses/Error500'
+        default:
+          description: Other failures use the same envelope. Clients must tolerate unknown error codes.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          headers:
+            X-Request-ID:
+              schema:
+                type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[A-Za-z0-9_-]+$
+                description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+              description: Unique per HTTP request; contains no secrets.
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+        '422':
+          $ref: '#/components/responses/Error422'
+      security: []
+      x-access-boundary: 'Tailnet access rules permit reachability through the configured Tailscale Serve HTTPS
+        origin and dedicated trusted proxy ingress. No application login, identity-header requirement or administrator
+        allowlist. POST also requires exact Origin and X-eRecipe-Control: 1. Direct LAN access is forbidden. See
+        x-contract.dashboard_access and dashboard_csrf.'
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      description: Per-client opaque token; hashed on server, stored in iOS Keychain. Shared-library access, no
+        administration.
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: Client-generated UUID, reused unchanged for retries. Keys are scoped to user across all application
+        commands; target and operation are fingerprinted. Dashboard control keys use a separate server-wide durable
+        namespace independent of Tailscale identity. See x-contract.idempotency.
+      schema:
+        type: string
+        format: uuid
+    Limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 50
+    Cursor:
+      name: cursor
+      in: query
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 4096
+      description: 'Opaque cursor bound to endpoint, filters and page size; expires after 24 hours. Invalid/expired
+        cursor: 400 invalid_cursor; restart traversal.'
+    ControlHeader:
+      name: X-eRecipe-Control
+      in: header
+      required: true
+      description: Required on dashboard POST requests in addition to trusted Serve ingress and exact Origin validation.
+        CSRF protection, not a credential.
+      schema:
+        type: string
+        const: '1'
+    DashboardOrigin:
+      name: Origin
+      in: header
+      required: true
+      description: Browser-supplied origin must exactly match the configured Tailscale Serve HTTPS origin, including
+        any nondefault port.
+      schema:
+        type: string
+        format: uri
+  responses:
+    Error400:
+      description: Malformed JSON, cursor, multipart manifest or missing/invalid Idempotency-Key.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+      headers:
+        X-Request-ID:
+          schema:
+            $ref: '#/components/schemas/Id'
+        Cache-Control:
+          schema:
+            type: string
+            const: no-store
+    Error401:
+      description: 'Missing, invalid, expired or revoked authentication. Bearer endpoints send WWW-Authenticate:
+        Bearer.'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+      headers:
+        WWW-Authenticate:
+          schema:
+            type: string
+          description: Bearer on application authentication failures; absent for enrollment-code rejection.
+        X-Request-ID:
+          schema:
+            $ref: '#/components/schemas/Id'
+        Cache-Control:
+          schema:
+            type: string
+            const: no-store
+    Error403:
+      description: Dashboard trusted-ingress, Host, Origin or CSRF boundary failed. Tailnet rules govern service
+        reachability; no application administrator identity is required.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+      headers:
+        X-Request-ID:
+          schema:
+            $ref: '#/components/schemas/Id'
+        Cache-Control:
+          schema:
+            type: string
+            const: no-store
+    Error404:
+      description: Resource not found, including an invalid cross-recipe relationship.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+      headers:
+        X-Request-ID:
+          schema:
+            $ref: '#/components/schemas/Id'
+        Cache-Control:
+          schema:
+            type: string
+            const: no-store
+    Error409:
+      description: Revision conflict, idempotency mismatch, archived recipe, or invalid state transition.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+      headers:
+        X-Request-ID:
+          schema:
+            $ref: '#/components/schemas/Id'
+        Cache-Control:
+          schema:
+            type: string
+            const: no-store
+    Error410:
+      description: Enrollment expired, revoked, already redeemed or otherwise unusable.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+      headers:
+        X-Request-ID:
+          schema:
+            $ref: '#/components/schemas/Id'
+        Cache-Control:
+          schema:
+            type: string
+            const: no-store
+    Error413:
+      description: Body, text, image count, file size or decoded pixel limit exceeded.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+      headers:
+        X-Request-ID:
+          schema:
+            $ref: '#/components/schemas/Id'
+        Cache-Control:
+          schema:
+            type: string
+            const: no-store
+    Error415:
+      description: Unsupported request content type or image encoding.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+      headers:
+        X-Request-ID:
+          schema:
+            $ref: '#/components/schemas/Id'
+        Cache-Control:
+          schema:
+            type: string
+            const: no-store
+    Error422:
+      description: Valid JSON but invalid fields, unsupported capability, unsafe URL or invalid Markdown.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+      headers:
+        X-Request-ID:
+          schema:
+            $ref: '#/components/schemas/Id'
+        Cache-Control:
+          schema:
+            type: string
+            const: no-store
+    Error429:
+      description: Rate limited. Retry-After contains integer seconds.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+      headers:
+        Retry-After:
+          schema:
+            type: string
+            pattern: ^[0-9]+$
+          description: Seconds before retrying; required for 429, optional for 503.
+        X-Request-ID:
+          schema:
+            $ref: '#/components/schemas/Id'
+        Cache-Control:
+          schema:
+            type: string
+            const: no-store
+    Error503:
+      description: A required synchronous service is unavailable. Durable imports may still be accepted while workers
+        are unavailable.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+      headers:
+        Retry-After:
+          schema:
+            type: string
+            pattern: ^[0-9]+$
+          description: Seconds before retrying; required for 429, optional for 503.
+        X-Request-ID:
+          schema:
+            $ref: '#/components/schemas/Id'
+        Cache-Control:
+          schema:
+            type: string
+            const: no-store
+    Error500:
+      description: Unexpected server failure; no sensitive exception details.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+      headers:
+        X-Request-ID:
+          schema:
+            $ref: '#/components/schemas/Id'
+        Cache-Control:
+          schema:
+            type: string
+            const: no-store
+  schemas:
+    Id:
+      type: string
+      minLength: 1
+      maxLength: 128
+      pattern: ^[A-Za-z0-9_-]+$
+      description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+    ErrorDetail:
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        retryable:
+          type: boolean
+        details:
+          type: object
+          additionalProperties: true
+      required:
+      - code
+      - message
+      - retryable
+      - details
+      additionalProperties: true
+      allOf:
+      - if:
+          properties:
+            code:
+              const: revision_conflict
+          required:
+          - code
+        then:
+          properties:
+            details:
+              type: object
+              required:
+              - current_revision_id
+              - lock_version
+              properties:
+                current_revision_id:
+                  anyOf:
+                  - $ref: '#/components/schemas/Id'
+                  - type: 'null'
+                lock_version:
+                  type: integer
+                  minimum: 0
+    Error:
+      type: object
+      properties:
+        error:
+          $ref: '#/components/schemas/ErrorDetail'
+        request_id:
+          type: string
+          minLength: 1
+          maxLength: 128
+          pattern: ^[A-Za-z0-9_-]+$
+          description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+      required:
+      - error
+      - request_id
+      additionalProperties: true
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          minLength: 1
+          maxLength: 128
+          pattern: ^[A-Za-z0-9_-]+$
+          description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+        display_name:
+          type: string
+          minLength: 1
+          maxLength: 100
+      required:
+      - id
+      - display_name
+      additionalProperties: true
+    AdminUser:
+      type: object
+      properties:
+        id:
+          type: string
+          minLength: 1
+          maxLength: 128
+          pattern: ^[A-Za-z0-9_-]+$
+          description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+        display_name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        created_at:
+          type: string
+          format: date-time
+          description: RFC 3339 UTC timestamp; fractional seconds are allowed.
+        disabled_at:
+          anyOf:
+          - type: string
+            format: date-time
+            description: RFC 3339 UTC timestamp; fractional seconds are allowed.
+          - type: 'null'
+      required:
+      - id
+      - display_name
+      - created_at
+      - disabled_at
+      additionalProperties: true
+    CreateUser:
+      type: object
+      properties:
+        display_name:
+          type: string
+          minLength: 1
+          maxLength: 100
+      required:
+      - display_name
+      additionalProperties: false
+    Credential:
+      type: object
+      properties:
+        id:
+          type: string
+          minLength: 1
+          maxLength: 128
+          pattern: ^[A-Za-z0-9_-]+$
+          description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+        user_id:
+          type: string
+          minLength: 1
+          maxLength: 128
+          pattern: ^[A-Za-z0-9_-]+$
+          description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+        label:
+          type: string
+          maxLength: 100
+        created_at:
+          type: string
+          format: date-time
+          description: RFC 3339 UTC timestamp; fractional seconds are allowed.
+        revoked_at:
+          anyOf:
+          - type: string
+            format: date-time
+            description: RFC 3339 UTC timestamp; fractional seconds are allowed.
+          - type: 'null'
+      required:
+      - id
+      - user_id
+      - label
+      - created_at
+      - revoked_at
+      additionalProperties: true
+    CreateEnrollment:
+      type: object
+      properties:
+        device_label:
+          type: string
+          minLength: 1
+          maxLength: 100
+      required:
+      - device_label
+      additionalProperties: false
+    Enrollment:
+      type: object
+      properties:
+        id:
+          type: string
+          minLength: 1
+          maxLength: 128
+          pattern: ^[A-Za-z0-9_-]+$
+          description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+        user_id:
+          type: string
+          minLength: 1
+          maxLength: 128
+          pattern: ^[A-Za-z0-9_-]+$
+          description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+        device_label:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+          description: RFC 3339 UTC timestamp; fractional seconds are allowed.
+        expires_at:
+          type: string
+          format: date-time
+          description: RFC 3339 UTC timestamp; fractional seconds are allowed.
+        state:
+          type: string
+          enum:
+          - pending
+          - redeemed
+          - expired
+          - revoked
+        credential_id:
+          anyOf:
+          - type: string
+            minLength: 1
+            maxLength: 128
+            pattern: ^[A-Za-z0-9_-]+$
+            description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+          - type: 'null'
+      required:
+      - id
+      - user_id
+      - device_label
+      - created_at
+      - expires_at
+      - state
+      - credential_id
+      additionalProperties: true
+    EnrollmentCreated:
+      type: object
+      properties:
+        qr_svg:
+          type: string
+          description: SVG QR image encoding enrollment_url exactly. Secret-bearing; returned only on creation,
+            never cached or persisted. The dashboard displays it locally without a third-party QR service.
+        enrollment:
+          $ref: '#/components/schemas/Enrollment'
+        enrollment_url:
+          type: string
+          format: uri
+          description: erecipe://enroll?v=1&server=<percent-encoded HTTPS origin>&code=<single-use secret>. Returned
+            only on creation. QR pixels encode this exact string. Example uses fictional origin and nonfunctional
+            code; it is not an enrollment invitation.
+      required:
+      - enrollment
+      - enrollment_url
+      additionalProperties: true
+    RedeemEnrollment:
+      type: object
+      properties:
+        code:
+          type: string
+          pattern: ^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$
+          description: 32 cryptographically random bytes encoded as unpadded base64url. Secret; never log.
+      required:
+      - code
+      additionalProperties: false
+    EnrollmentRedeemed:
+      type: object
+      properties:
+        user:
+          $ref: '#/components/schemas/User'
+        credential:
+          $ref: '#/components/schemas/Credential'
+        access_token:
+          type: string
+          pattern: ^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$
+          description: 32 cryptographically random bytes encoded as unpadded base64url. Secret; never log.
+        token_type:
+          type: string
+          enum:
+          - Bearer
+        server_id:
+          type: string
+          minLength: 1
+          maxLength: 128
+          pattern: ^[A-Za-z0-9_-]+$
+          description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+      required:
+      - user
+      - credential
+      - access_token
+      - token_type
+      - server_id
+      additionalProperties: true
+    ImportLimits:
+      type: object
+      properties:
+        text_characters:
+          type: integer
+          const: 100000
+        json_body_bytes:
+          type: integer
+          const: 1048576
+        url_characters:
+          type: integer
+          const: 8192
+        image_count:
+          type: integer
+          const: 6
+        image_file_bytes:
+          type: integer
+          const: 10485760
+        image_total_bytes:
+          type: integer
+          const: 31457280
+        multipart_body_bytes:
+          type: integer
+          const: 32505856
+        image_pixels:
+          type: integer
+          const: 20000000
+        image_media_types:
+          type: array
+          items:
+            type: string
+            enum:
+            - image/jpeg
+            - image/png
+          minItems: 2
+          maxItems: 2
+      required:
+      - text_characters
+      - json_body_bytes
+      - url_characters
+      - image_count
+      - image_file_bytes
+      - image_total_bytes
+      - multipart_body_bytes
+      - image_pixels
+      - image_media_types
+      additionalProperties: true
+    Capabilities:
+      type: object
+      properties:
+        import_kinds:
+          type: array
+          items:
+            type: string
+            enum:
+            - text
+            - url
+            - images
+          uniqueItems: true
+        source_refresh:
+          type: boolean
+        publication:
+          type: boolean
+        archive:
+          type: boolean
+        render_profile_ids:
+          type: array
+          items:
+            type: string
+            enum:
+            - trmnl-x-landscape-v1
+        limits:
+          $ref: '#/components/schemas/ImportLimits'
+      required:
+      - import_kinds
+      - source_refresh
+      - publication
+      - archive
+      - render_profile_ids
+      - limits
+      additionalProperties: true
+    Readiness:
+      type: object
+      properties:
+        worker:
+          type: string
+          enum:
+          - ready
+          - unavailable
+          - unknown
+        extraction:
+          type: string
+          enum:
+          - ready
+          - not_configured
+          - unavailable
+        rendering:
+          type: string
+          enum:
+          - ready
+          - unavailable
+        issues:
+          type: array
+          items:
+            $ref: '#/components/schemas/ErrorDetail'
+      required:
+      - worker
+      - extraction
+      - rendering
+      - issues
+      additionalProperties: true
+    Status:
+      type: object
+      properties:
+        api_version:
+          type: string
+          enum:
+          - '1'
+        contract_version:
+          type: string
+        server_id:
+          type: string
+          minLength: 1
+          maxLength: 128
+          pattern: ^[A-Za-z0-9_-]+$
+          description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+        user:
+          $ref: '#/components/schemas/User'
+        capabilities:
+          $ref: '#/components/schemas/Capabilities'
+        readiness:
+          $ref: '#/components/schemas/Readiness'
+      required:
+      - api_version
+      - contract_version
+      - server_id
+      - user
+      - capabilities
+      - readiness
+      additionalProperties: true
+    TextImport:
+      type: object
+      properties:
+        kind:
+          type: string
+          enum:
+          - text
+        text:
+          type: string
+          minLength: 1
+          maxLength: 100000
+          description: Unicode scalar count; non-whitespace content required. Preserve original text exactly.
+      required:
+      - kind
+      - text
+      additionalProperties: false
+    UrlImport:
+      type: object
+      properties:
+        kind:
+          type: string
+          enum:
+          - url
+        url:
+          type: string
+          minLength: 1
+          maxLength: 8192
+          format: uri
+          description: Exact submitted public HTTP(S) URL, including query and fragment. Credentials and nonpublic
+            destinations are forbidden. Only standard HTTP/HTTPS ports are supported; capture accepts HTML pages
+            up to 4 MiB, follows at most five validated redirects, and does not execute JavaScript.
+      required:
+      - kind
+      - url
+      additionalProperties: false
+    JsonImport:
+      oneOf:
+      - $ref: '#/components/schemas/TextImport'
+      - $ref: '#/components/schemas/UrlImport'
+      discriminator:
+        propertyName: kind
+        mapping:
+          text: '#/components/schemas/TextImport'
+          url: '#/components/schemas/UrlImport'
+    ImageAttachment:
+      type: object
+      properties:
+        part_name:
+          type: string
+          enum:
+          - image_1
+          - image_2
+          - image_3
+          - image_4
+          - image_5
+          - image_6
+        filename:
+          type: string
+          minLength: 1
+          maxLength: 255
+          description: Display name only; never a filesystem path.
+      required:
+      - part_name
+      - filename
+      additionalProperties: false
+    ImageMetadata:
+      type: object
+      properties:
+        kind:
+          type: string
+          enum:
+          - images
+        attachments:
+          type: array
+          items:
+            $ref: '#/components/schemas/ImageAttachment'
+          minItems: 1
+          maxItems: 6
+          description: Array order is source order. Unique part_name; exactly one matching file part per entry.
+      required:
+      - kind
+      - attachments
+      additionalProperties: false
+    ImageImport:
+      type: object
+      properties:
+        metadata:
+          $ref: '#/components/schemas/ImageMetadata'
+        image_1:
+          type: string
+          format: binary
+        image_2:
+          type: string
+          format: binary
+        image_3:
+          type: string
+          format: binary
+        image_4:
+          type: string
+          format: binary
+        image_5:
+          type: string
+          format: binary
+        image_6:
+          type: string
+          format: binary
+      required:
+      - metadata
+      additionalProperties: false
+      description: Multipart metadata is application/json. Files are image/jpeg or image/png; no duplicate, missing,
+        unlisted, or additional parts. Metadata order wins over transport order.
+    ImportAccepted:
+      type: object
+      properties:
+        status:
+          type: string
+          enum:
+          - accepted
+        recipe_id:
+          type: string
+          minLength: 1
+          maxLength: 128
+          pattern: ^[A-Za-z0-9_-]+$
+          description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+        source_capture_id:
+          type: string
+          minLength: 1
+          maxLength: 128
+          pattern: ^[A-Za-z0-9_-]+$
+          description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+        job_id:
+          type: string
+          minLength: 1
+          maxLength: 128
+          pattern: ^[A-Za-z0-9_-]+$
+          description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+      required:
+      - status
+      - recipe_id
+      - source_capture_id
+      - job_id
+      additionalProperties: true
+    Asset:
+      type: object
+      properties:
+        id:
+          type: string
+          pattern: ^[a-f0-9]{64}$
+        media_type:
+          type: string
+        byte_size:
+          type: integer
+          minimum: 0
+        href:
+          type: string
+          pattern: ^/api/v1/assets/[a-f0-9]{64}$
+      required:
+      - id
+      - media_type
+      - byte_size
+      - href
+      additionalProperties: true
+    SourceAsset:
+      type: object
+      properties:
+        role:
+          type: string
+          enum:
+          - original_text
+          - original_image
+          - processed_image
+          - response_html
+          - rendered_dom_html
+          - visible_text
+          - structured_recipe_data
+        ordinal:
+          type: integer
+          minimum: 0
+        original_filename:
+          anyOf:
+          - type: string
+          - type: 'null'
+        asset:
+          $ref: '#/components/schemas/Asset'
+      required:
+      - role
+      - ordinal
+      - original_filename
+      - asset
+      additionalProperties: true
+    SourceCapture:
+      type: object
+      properties:
+        id:
+          type: string
+          minLength: 1
+          maxLength: 128
+          pattern: ^[A-Za-z0-9_-]+$
+          description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+        recipe_id:
+          type: string
+          minLength: 1
+          maxLength: 128
+          pattern: ^[A-Za-z0-9_-]+$
+          description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+        previous_capture_id:
+          anyOf:
+          - type: string
+            minLength: 1
+            maxLength: 128
+            pattern: ^[A-Za-z0-9_-]+$
+            description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+          - type: 'null'
+        kind:
+          type: string
+          enum:
+          - text
+          - url
+          - images
+        submitted_url:
+          anyOf:
+          - type: string
+          - type: 'null'
+        resolved_url:
+          anyOf:
+          - type: string
+          - type: 'null'
+        state:
+          type: string
+          enum:
+          - pending
+          - complete
+          - failed
+        submitted_at:
+          type: string
+          format: date-time
+          description: RFC 3339 UTC timestamp; fractional seconds are allowed.
+        captured_at:
+          anyOf:
+          - type: string
+            format: date-time
+            description: RFC 3339 UTC timestamp; fractional seconds are allowed.
+          - type: 'null'
+        created_by:
+          $ref: '#/components/schemas/User'
+        metadata:
+          type: object
+          additionalProperties: true
+          description: Sanitized acquisition metadata; no credentials or internal storage paths.
+        error:
+          anyOf:
+          - $ref: '#/components/schemas/ErrorDetail'
+          - type: 'null'
+        assets:
+          type: array
+          items:
+            $ref: '#/components/schemas/SourceAsset'
+      required:
+      - id
+      - recipe_id
+      - previous_capture_id
+      - kind
+      - submitted_url
+      - resolved_url
+      - state
+      - submitted_at
+      - captured_at
+      - created_by
+      - metadata
+      - error
+      - assets
+      additionalProperties: true
+    RevisionSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          minLength: 1
+          maxLength: 128
+          pattern: ^[A-Za-z0-9_-]+$
+          description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+        recipe_id:
+          type: string
+          minLength: 1
+          maxLength: 128
+          pattern: ^[A-Za-z0-9_-]+$
+          description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+        parent_revision_id:
+          anyOf:
+          - type: string
+            minLength: 1
+            maxLength: 128
+            pattern: ^[A-Za-z0-9_-]+$
+            description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+          - type: 'null'
+        source_capture_id:
+          type: string
+          minLength: 1
+          maxLength: 128
+          pattern: ^[A-Za-z0-9_-]+$
+          description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+        generated_by_attempt_id:
+          anyOf:
+          - type: string
+            minLength: 1
+            maxLength: 128
+            pattern: ^[A-Za-z0-9_-]+$
+            description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+          - type: 'null'
+        origin:
+          type: string
+          enum:
+          - extraction
+          - user_edit
+          - restore
+        title:
+          type: string
+        warnings:
+          type: array
+          items:
+            type: string
+        created_by:
+          $ref: '#/components/schemas/User'
+        created_at:
+          type: string
+          format: date-time
+          description: RFC 3339 UTC timestamp; fractional seconds are allowed.
+        is_current:
+          type: boolean
+        is_candidate:
+          type: boolean
+      required:
+      - id
+      - recipe_id
+      - parent_revision_id
+      - source_capture_id
+      - generated_by_attempt_id
+      - origin
+      - title
+      - warnings
+      - created_by
+      - created_at
+      - is_current
+      - is_candidate
+      additionalProperties: true
+    Revision:
+      type: object
+      properties:
+        id:
+          type: string
+          minLength: 1
+          maxLength: 128
+          pattern: ^[A-Za-z0-9_-]+$
+          description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+        recipe_id:
+          type: string
+          minLength: 1
+          maxLength: 128
+          pattern: ^[A-Za-z0-9_-]+$
+          description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+        parent_revision_id:
+          anyOf:
+          - type: string
+            minLength: 1
+            maxLength: 128
+            pattern: ^[A-Za-z0-9_-]+$
+            description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+          - type: 'null'
+        source_capture_id:
+          type: string
+          minLength: 1
+          maxLength: 128
+          pattern: ^[A-Za-z0-9_-]+$
+          description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+        generated_by_attempt_id:
+          anyOf:
+          - type: string
+            minLength: 1
+            maxLength: 128
+            pattern: ^[A-Za-z0-9_-]+$
+            description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+          - type: 'null'
+        origin:
+          type: string
+          enum:
+          - extraction
+          - user_edit
+          - restore
+        title:
+          type: string
+        warnings:
+          type: array
+          items:
+            type: string
+        created_by:
+          $ref: '#/components/schemas/User'
+        created_at:
+          type: string
+          format: date-time
+          description: RFC 3339 UTC timestamp; fractional seconds are allowed.
+        is_current:
+          type: boolean
+        is_candidate:
+          type: boolean
+        markdown:
+          type: string
+          maxLength: 100000
+        markdown_sha256:
+          type: string
+          pattern: ^[a-f0-9]{64}$
+        format:
+          type: string
+          enum:
+          - erecipe/v1
+      required:
+      - id
+      - recipe_id
+      - parent_revision_id
+      - source_capture_id
+      - generated_by_attempt_id
+      - origin
+      - title
+      - warnings
+      - created_by
+      - created_at
+      - is_current
+      - is_candidate
+      - markdown
+      - markdown_sha256
+      - format
+      additionalProperties: true
+    ProcessingSummary:
+      type: object
+      properties:
+        active_job_count:
+          type: integer
+          minimum: 0
+        failed_job_count:
+          type: integer
+          minimum: 0
+        latest_job_id:
+          anyOf:
+          - type: string
+            minLength: 1
+            maxLength: 128
+            pattern: ^[A-Za-z0-9_-]+$
+            description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+          - type: 'null'
+        jobs_href:
+          type: string
+        current_preview:
+          type: string
+          enum:
+          - none
+          - pending
+          - ready
+          - failed
+        current_render_set_id:
+          anyOf:
+          - type: string
+            minLength: 1
+            maxLength: 128
+            pattern: ^[A-Za-z0-9_-]+$
+            description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+          - type: 'null'
+      required:
+      - active_job_count
+      - failed_job_count
+      - latest_job_id
+      - jobs_href
+      - current_preview
+      - current_render_set_id
+      additionalProperties: true
+      description: 'Preview fields refer only to current_revision_id and the default profile. A failed candidate
+        does not make a ready current revision fail. Historical failed jobs remain counted even after a new successful
+        job. current_preview is none when there is no current revision. Otherwise select newest complete set by
+        (created_at,id) for the current revision/default profile: if present, ready and return its ID, even if another
+        render is running/failed. Without a set: pending if an active render exists; else failed if the latest render
+        failed; else none (including cancellation/no render). current_render_set_id is non-null exactly when ready.
+        latest_job_id uses (created_at,id) across all recipe jobs.'
+      oneOf:
+      - properties:
+          current_preview:
+            const: ready
+          current_render_set_id:
+            type: string
+      - properties:
+          current_preview:
+            enum:
+            - none
+            - pending
+            - failed
+          current_render_set_id:
+            type: 'null'
+    RecipeSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          minLength: 1
+          maxLength: 128
+          pattern: ^[A-Za-z0-9_-]+$
+          description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+        current_revision_id:
+          anyOf:
+          - type: string
+            minLength: 1
+            maxLength: 128
+            pattern: ^[A-Za-z0-9_-]+$
+            description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+          - type: 'null'
+        title:
+          anyOf:
+          - type: string
+          - type: 'null'
+        lock_version:
+          type: integer
+          minimum: 0
+        created_by:
+          $ref: '#/components/schemas/User'
+        created_at:
+          type: string
+          format: date-time
+          description: RFC 3339 UTC timestamp; fractional seconds are allowed.
+        updated_at:
+          type: string
+          format: date-time
+          description: RFC 3339 UTC timestamp; fractional seconds are allowed.
+        archived_at:
+          anyOf:
+          - type: string
+            format: date-time
+            description: RFC 3339 UTC timestamp; fractional seconds are allowed.
+          - type: 'null'
+        candidate_count:
+          type: integer
+          minimum: 0
+        processing:
+          $ref: '#/components/schemas/ProcessingSummary'
+      required:
+      - id
+      - current_revision_id
+      - title
+      - lock_version
+      - created_by
+      - created_at
+      - updated_at
+      - archived_at
+      - candidate_count
+      - processing
+      additionalProperties: true
+    Recipe:
+      type: object
+      properties:
+        id:
+          type: string
+          minLength: 1
+          maxLength: 128
+          pattern: ^[A-Za-z0-9_-]+$
+          description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+        current_revision_id:
+          anyOf:
+          - type: string
+            minLength: 1
+            maxLength: 128
+            pattern: ^[A-Za-z0-9_-]+$
+            description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+          - type: 'null'
+        title:
+          anyOf:
+          - type: string
+          - type: 'null'
+        lock_version:
+          type: integer
+          minimum: 0
+        created_by:
+          $ref: '#/components/schemas/User'
+        created_at:
+          type: string
+          format: date-time
+          description: RFC 3339 UTC timestamp; fractional seconds are allowed.
+        updated_at:
+          type: string
+          format: date-time
+          description: RFC 3339 UTC timestamp; fractional seconds are allowed.
+        archived_at:
+          anyOf:
+          - type: string
+            format: date-time
+            description: RFC 3339 UTC timestamp; fractional seconds are allowed.
+          - type: 'null'
+        candidate_count:
+          type: integer
+          minimum: 0
+        processing:
+          $ref: '#/components/schemas/ProcessingSummary'
+        current_revision:
+          anyOf:
+          - $ref: '#/components/schemas/Revision'
+          - type: 'null'
+        revisions_href:
+          type: string
+        candidates_href:
+          type: string
+        source_captures_href:
+          type: string
+        jobs_href:
+          type: string
+      required:
+      - id
+      - current_revision_id
+      - title
+      - lock_version
+      - created_by
+      - created_at
+      - updated_at
+      - archived_at
+      - candidate_count
+      - processing
+      - current_revision
+      - revisions_href
+      - candidates_href
+      - source_captures_href
+      - jobs_href
+      additionalProperties: true
+    EditRevision:
+      type: object
+      properties:
+        expected_lock_version:
+          type: integer
+          minimum: 0
+        markdown:
+          type: string
+          minLength: 1
+          maxLength: 100000
+          description: Unicode scalar count; non-whitespace content required. Preserve original text exactly.
+      required:
+      - expected_lock_version
+      - markdown
+      additionalProperties: false
+    AcceptRevision:
+      type: object
+      properties:
+        expected_lock_version:
+          type: integer
+          minimum: 0
+        revision_id:
+          type: string
+          minLength: 1
+          maxLength: 128
+          pattern: ^[A-Za-z0-9_-]+$
+          description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+      required:
+      - expected_lock_version
+      - revision_id
+      additionalProperties: false
+    RevisionSaved:
+      type: object
+      properties:
+        recipe_id:
+          type: string
+          minLength: 1
+          maxLength: 128
+          pattern: ^[A-Za-z0-9_-]+$
+          description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+        revision_id:
+          type: string
+          minLength: 1
+          maxLength: 128
+          pattern: ^[A-Za-z0-9_-]+$
+          description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+        lock_version:
+          type: integer
+          minimum: 1
+        render_job_id:
+          type: string
+          minLength: 1
+          maxLength: 128
+          pattern: ^[A-Za-z0-9_-]+$
+          description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+      required:
+      - recipe_id
+      - revision_id
+      - lock_version
+      - render_job_id
+      additionalProperties: true
+    RevisionAccepted:
+      type: object
+      properties:
+        recipe_id:
+          type: string
+          minLength: 1
+          maxLength: 128
+          pattern: ^[A-Za-z0-9_-]+$
+          description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+        revision_id:
+          type: string
+          minLength: 1
+          maxLength: 128
+          pattern: ^[A-Za-z0-9_-]+$
+          description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+        lock_version:
+          type: integer
+          minimum: 1
+        render_job_id:
+          anyOf:
+          - type: string
+            minLength: 1
+            maxLength: 128
+            pattern: ^[A-Za-z0-9_-]+$
+            description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+          - type: 'null'
+        render_set_id:
+          anyOf:
+          - type: string
+            minLength: 1
+            maxLength: 128
+            pattern: ^[A-Za-z0-9_-]+$
+            description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+          - type: 'null'
+      required:
+      - recipe_id
+      - revision_id
+      - lock_version
+      - render_job_id
+      - render_set_id
+      additionalProperties: true
+      oneOf:
+      - properties:
+          render_job_id:
+            type: string
+          render_set_id:
+            type: 'null'
+      - properties:
+          render_job_id:
+            type: 'null'
+          render_set_id:
+            type: string
+    ArchiveRecipe:
+      type: object
+      properties:
+        expected_lock_version:
+          type: integer
+          minimum: 0
+      required:
+      - expected_lock_version
+      additionalProperties: false
+    RecipeArchived:
+      type: object
+      properties:
+        recipe_id:
+          type: string
+          minLength: 1
+          maxLength: 128
+          pattern: ^[A-Za-z0-9_-]+$
+          description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+        lock_version:
+          type: integer
+          minimum: 1
+        archived_at:
+          type: string
+          format: date-time
+          description: RFC 3339 UTC timestamp; fractional seconds are allowed.
+      required:
+      - recipe_id
+      - lock_version
+      - archived_at
+      additionalProperties: true
+    CaptureRequest:
+      type: object
+      properties:
+        source_capture_id:
+          type: string
+          minLength: 1
+          maxLength: 128
+          pattern: ^[A-Za-z0-9_-]+$
+          description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+      required:
+      - source_capture_id
+      additionalProperties: false
+    RenderRequest:
+      type: object
+      properties:
+        profile_id:
+          type: string
+          enum:
+          - trmnl-x-landscape-v1
+      required:
+      - profile_id
+      additionalProperties: false
+    WorkAccepted:
+      type: object
+      properties:
+        recipe_id:
+          type: string
+          minLength: 1
+          maxLength: 128
+          pattern: ^[A-Za-z0-9_-]+$
+          description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+        job_id:
+          type: string
+          minLength: 1
+          maxLength: 128
+          pattern: ^[A-Za-z0-9_-]+$
+          description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+        source_capture_id:
+          anyOf:
+          - type: string
+            minLength: 1
+            maxLength: 128
+            pattern: ^[A-Za-z0-9_-]+$
+            description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+          - type: 'null'
+        revision_id:
+          anyOf:
+          - type: string
+            minLength: 1
+            maxLength: 128
+            pattern: ^[A-Za-z0-9_-]+$
+            description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+          - type: 'null'
+      required:
+      - recipe_id
+      - job_id
+      - source_capture_id
+      - revision_id
+      additionalProperties: true
+    RenderResult:
+      type: object
+      properties:
+        status:
+          type: string
+          enum:
+          - queued
+          - running
+          - ready
+        revision_id:
+          type: string
+          minLength: 1
+          maxLength: 128
+          pattern: ^[A-Za-z0-9_-]+$
+          description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+        job_id:
+          anyOf:
+          - type: string
+            minLength: 1
+            maxLength: 128
+            pattern: ^[A-Za-z0-9_-]+$
+            description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+          - type: 'null'
+        render_set_id:
+          anyOf:
+          - type: string
+            minLength: 1
+            maxLength: 128
+            pattern: ^[A-Za-z0-9_-]+$
+            description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+          - type: 'null'
+      required:
+      - status
+      - revision_id
+      - job_id
+      - render_set_id
+      additionalProperties: true
+      description: 202 queued/running requires job_id; 200 ready requires render_set_id. A replay retains its original
+        response; poll referenced resources.
+      oneOf:
+      - properties:
+          status:
+            const: ready
+          job_id:
+            type: 'null'
+          render_set_id:
+            type: string
+      - properties:
+          status:
+            enum:
+            - queued
+            - running
+          job_id:
+            type: string
+          render_set_id:
+            type: 'null'
+    JobResults:
+      type: object
+      properties:
+        source_capture_id:
+          anyOf:
+          - type: string
+            minLength: 1
+            maxLength: 128
+            pattern: ^[A-Za-z0-9_-]+$
+            description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+          - type: 'null'
+        revision_id:
+          anyOf:
+          - type: string
+            minLength: 1
+            maxLength: 128
+            pattern: ^[A-Za-z0-9_-]+$
+            description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+          - type: 'null'
+        render_set_id:
+          anyOf:
+          - type: string
+            minLength: 1
+            maxLength: 128
+            pattern: ^[A-Za-z0-9_-]+$
+            description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+          - type: 'null'
+      required:
+      - source_capture_id
+      - revision_id
+      - render_set_id
+      additionalProperties: true
+    Job:
+      type: object
+      properties:
+        id:
+          type: string
+          minLength: 1
+          maxLength: 128
+          pattern: ^[A-Za-z0-9_-]+$
+          description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+        recipe_id:
+          type: string
+          minLength: 1
+          maxLength: 128
+          pattern: ^[A-Za-z0-9_-]+$
+          description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+        parent_job_id:
+          anyOf:
+          - type: string
+            minLength: 1
+            maxLength: 128
+            pattern: ^[A-Za-z0-9_-]+$
+            description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+          - type: 'null'
+        kind:
+          type: string
+          enum:
+          - capture
+          - extract
+          - render
+        status:
+          type: string
+          enum:
+          - queued
+          - running
+          - succeeded
+          - failed
+          - cancelled
+        source_capture_id:
+          anyOf:
+          - type: string
+            minLength: 1
+            maxLength: 128
+            pattern: ^[A-Za-z0-9_-]+$
+            description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+          - type: 'null'
+        input_revision_id:
+          anyOf:
+          - type: string
+            minLength: 1
+            maxLength: 128
+            pattern: ^[A-Za-z0-9_-]+$
+            description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+          - type: 'null'
+        base_revision_id:
+          anyOf:
+          - type: string
+            minLength: 1
+            maxLength: 128
+            pattern: ^[A-Za-z0-9_-]+$
+            description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+          - type: 'null'
+        requested_by:
+          $ref: '#/components/schemas/User'
+        created_at:
+          type: string
+          format: date-time
+          description: RFC 3339 UTC timestamp; fractional seconds are allowed.
+        finished_at:
+          anyOf:
+          - type: string
+            format: date-time
+            description: RFC 3339 UTC timestamp; fractional seconds are allowed.
+          - type: 'null'
+        attempt_count:
+          type: integer
+          minimum: 0
+        retry_allowed:
+          type: boolean
+        cancel_allowed:
+          type: boolean
+        error:
+          anyOf:
+          - $ref: '#/components/schemas/ErrorDetail'
+          - type: 'null'
+        result:
+          $ref: '#/components/schemas/JobResults'
+        downstream_job_ids:
+          type: array
+          items:
+            type: string
+            minLength: 1
+            maxLength: 128
+            pattern: ^[A-Za-z0-9_-]+$
+            description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+        attempts_href:
+          type: string
+      required:
+      - id
+      - recipe_id
+      - parent_job_id
+      - kind
+      - status
+      - source_capture_id
+      - input_revision_id
+      - base_revision_id
+      - requested_by
+      - created_at
+      - finished_at
+      - attempt_count
+      - retry_allowed
+      - cancel_allowed
+      - error
+      - result
+      - downstream_job_ids
+      - attempts_href
+      additionalProperties: true
+    Attempt:
+      type: object
+      properties:
+        id:
+          type: string
+          minLength: 1
+          maxLength: 128
+          pattern: ^[A-Za-z0-9_-]+$
+          description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+        job_id:
+          type: string
+          minLength: 1
+          maxLength: 128
+          pattern: ^[A-Za-z0-9_-]+$
+          description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+        attempt_number:
+          type: integer
+          minimum: 1
+        status:
+          type: string
+          enum:
+          - running
+          - succeeded
+          - failed
+          - abandoned
+        started_at:
+          type: string
+          format: date-time
+          description: RFC 3339 UTC timestamp; fractional seconds are allowed.
+        finished_at:
+          anyOf:
+          - type: string
+            format: date-time
+            description: RFC 3339 UTC timestamp; fractional seconds are allowed.
+          - type: 'null'
+        error:
+          anyOf:
+          - $ref: '#/components/schemas/ErrorDetail'
+          - type: 'null'
+        llm_calls_href:
+          type: string
+      required:
+      - id
+      - job_id
+      - attempt_number
+      - status
+      - started_at
+      - finished_at
+      - error
+      - llm_calls_href
+      additionalProperties: true
+    LlmCall:
+      type: object
+      properties:
+        id:
+          type: string
+          minLength: 1
+          maxLength: 128
+          pattern: ^[A-Za-z0-9_-]+$
+          description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+        attempt_id:
+          type: string
+          minLength: 1
+          maxLength: 128
+          pattern: ^[A-Za-z0-9_-]+$
+          description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+        sequence:
+          type: integer
+          minimum: 1
+        provider:
+          type: string
+        requested_model:
+          type: string
+        reported_model:
+          anyOf:
+          - type: string
+          - type: 'null'
+        provider_request_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+        prompt_version:
+          type: string
+        adapter_version:
+          type: string
+        status:
+          type: string
+          enum:
+          - running
+          - succeeded
+          - failed
+          - abandoned
+        started_at:
+          type: string
+          format: date-time
+          description: RFC 3339 UTC timestamp; fractional seconds are allowed.
+        finished_at:
+          anyOf:
+          - type: string
+            format: date-time
+            description: RFC 3339 UTC timestamp; fractional seconds are allowed.
+          - type: 'null'
+        request_asset:
+          $ref: '#/components/schemas/Asset'
+        response_asset:
+          anyOf:
+          - $ref: '#/components/schemas/Asset'
+          - type: 'null'
+        structured_output_asset:
+          anyOf:
+          - $ref: '#/components/schemas/Asset'
+          - type: 'null'
+        usage:
+          anyOf:
+          - type: object
+            additionalProperties: true
+          - type: 'null'
+        error:
+          anyOf:
+          - $ref: '#/components/schemas/ErrorDetail'
+          - type: 'null'
+      required:
+      - id
+      - attempt_id
+      - sequence
+      - provider
+      - requested_model
+      - reported_model
+      - provider_request_id
+      - prompt_version
+      - adapter_version
+      - status
+      - started_at
+      - finished_at
+      - request_asset
+      - response_asset
+      - structured_output_asset
+      - usage
+      - error
+      additionalProperties: true
+    DisplayProfile:
+      type: object
+      properties:
+        id:
+          type: string
+          enum:
+          - trmnl-x-landscape-v1
+        width:
+          type: integer
+          const: 1872
+        height:
+          type: integer
+          const: 1404
+        encoding:
+          type: string
+          enum:
+          - png-1bit
+      required:
+      - id
+      - width
+      - height
+      - encoding
+      additionalProperties: true
+    RenderPage:
+      type: object
+      properties:
+        page_number:
+          type: integer
+          minimum: 1
+        asset:
+          $ref: '#/components/schemas/Asset'
+      required:
+      - page_number
+      - asset
+      additionalProperties: true
+    RenderSet:
+      type: object
+      properties:
+        id:
+          type: string
+          minLength: 1
+          maxLength: 128
+          pattern: ^[A-Za-z0-9_-]+$
+          description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+        revision_id:
+          type: string
+          minLength: 1
+          maxLength: 128
+          pattern: ^[A-Za-z0-9_-]+$
+          description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+        renderer_version:
+          type: string
+        profile:
+          $ref: '#/components/schemas/DisplayProfile'
+        preferences:
+          type: object
+          properties: {}
+          required: []
+          additionalProperties: false
+        page_count:
+          type: integer
+          minimum: 1
+        pages:
+          type: array
+          items:
+            $ref: '#/components/schemas/RenderPage'
+          minItems: 1
+        created_at:
+          type: string
+          format: date-time
+          description: RFC 3339 UTC timestamp; fractional seconds are allowed.
+      required:
+      - id
+      - revision_id
+      - renderer_version
+      - profile
+      - preferences
+      - page_count
+      - pages
+      - created_at
+      additionalProperties: true
+      description: Only complete sets are exposed. Pages are ordered 1..page_count without gaps; assets are image/png.
+        First renderer produces one page; clients must support a collection.
+    PublishPage:
+      type: object
+      properties:
+        render_set_id:
+          type: string
+          minLength: 1
+          maxLength: 128
+          pattern: ^[A-Za-z0-9_-]+$
+          description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+        page_number:
+          type: integer
+          minimum: 1
+      required:
+      - render_set_id
+      - page_number
+      additionalProperties: false
+    Publication:
+      type: object
+      properties:
+        id:
+          type: string
+          minLength: 1
+          maxLength: 128
+          pattern: ^[A-Za-z0-9_-]+$
+          description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+        kind:
+          type: string
+          enum:
+          - recipe
+          - legacy
+        render_set_id:
+          anyOf:
+          - type: string
+            minLength: 1
+            maxLength: 128
+            pattern: ^[A-Za-z0-9_-]+$
+            description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+          - type: 'null'
+        revision_id:
+          anyOf:
+          - type: string
+            minLength: 1
+            maxLength: 128
+            pattern: ^[A-Za-z0-9_-]+$
+            description: Opaque, case-sensitive identifier; do not assume UUID formatting.
+          - type: 'null'
+        page_number:
+          anyOf:
+          - type: integer
+            minimum: 1
+          - type: 'null'
+        legacy_label:
+          anyOf:
+          - type: string
+          - type: 'null'
+        selected_by:
+          anyOf:
+          - $ref: '#/components/schemas/User'
+          - type: 'null'
+        selected_at:
+          type: string
+          format: date-time
+          description: RFC 3339 UTC timestamp; fractional seconds are allowed.
+      required:
+      - id
+      - kind
+      - render_set_id
+      - revision_id
+      - page_number
+      - legacy_label
+      - selected_by
+      - selected_at
+      additionalProperties: true
+      description: Recipe publications have non-null render/revision/page; legacy publications have null values
+        and a legacy_label. This is a selection record, not display proof.
+      oneOf:
+      - properties:
+          kind:
+            const: recipe
+          render_set_id:
+            type: string
+          revision_id:
+            type: string
+          page_number:
+            type: integer
+          legacy_label:
+            type: 'null'
+      - properties:
+          kind:
+            const: legacy
+          render_set_id:
+            type: 'null'
+          revision_id:
+            type: 'null'
+          page_number:
+            type: 'null'
+          legacy_label:
+            type: string
+    PublicationCreated:
+      type: object
+      properties:
+        status:
+          type: string
+          enum:
+          - selected
+        publication:
+          $ref: '#/components/schemas/Publication'
+      required:
+      - status
+      - publication
+      additionalProperties: true
+    FetchEvidence:
+      type: object
+      properties:
+        asset_id:
+          anyOf:
+          - type: string
+            pattern: ^[a-f0-9]{64}$
+          - type: 'null'
+        legacy_image_version:
+          anyOf:
+          - type: string
+          - type: 'null'
+        fetched_at:
+          type: string
+          format: date-time
+          description: RFC 3339 UTC timestamp; fractional seconds are allowed.
+      required:
+      - asset_id
+      - legacy_image_version
+      - fetched_at
+      additionalProperties: true
+      description: Image-fetch observation only. Do not attribute an asset fetch to a particular publication when
+        the same image has been selected more than once.
+    Device:
+      type: object
+      properties:
+        paired:
+          type: boolean
+        selected_publication:
+          anyOf:
+          - $ref: '#/components/schemas/Publication'
+          - type: 'null'
+        last_checkin_at:
+          anyOf:
+          - type: string
+            format: date-time
+            description: RFC 3339 UTC timestamp; fractional seconds are allowed.
+          - type: 'null'
+        last_image_fetch:
+          anyOf:
+          - $ref: '#/components/schemas/FetchEvidence'
+          - type: 'null'
+        selected_asset_fetched_at:
+          anyOf:
+          - type: string
+            format: date-time
+            description: RFC 3339 UTC timestamp; fractional seconds are allowed.
+          - type: 'null'
+        display_evidence:
+          type: string
+          enum:
+          - unavailable
+      required:
+      - paired
+      - selected_publication
+      - last_checkin_at
+      - last_image_fetch
+      - selected_asset_fetched_at
+      - display_evidence
+      additionalProperties: true
+      description: selected_asset_fetched_at is a matching image fetch at or after selection, otherwise null. Cached
+        device images may never generate a new fetch; null does not prove failure.
+    UsersPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminUser'
+        next_cursor:
+          anyOf:
+          - type: string
+          - type: 'null'
+        has_more:
+          type: boolean
+      required:
+      - items
+      - next_cursor
+      - has_more
+      additionalProperties: true
+      oneOf:
+      - properties:
+          has_more:
+            const: true
+          next_cursor:
+            type: string
+            minLength: 1
+      - properties:
+          has_more:
+            const: false
+          next_cursor:
+            type: 'null'
+    CredentialsPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Credential'
+        next_cursor:
+          anyOf:
+          - type: string
+          - type: 'null'
+        has_more:
+          type: boolean
+      required:
+      - items
+      - next_cursor
+      - has_more
+      additionalProperties: true
+      oneOf:
+      - properties:
+          has_more:
+            const: true
+          next_cursor:
+            type: string
+            minLength: 1
+      - properties:
+          has_more:
+            const: false
+          next_cursor:
+            type: 'null'
+    RecipesPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/RecipeSummary'
+        next_cursor:
+          anyOf:
+          - type: string
+          - type: 'null'
+        has_more:
+          type: boolean
+      required:
+      - items
+      - next_cursor
+      - has_more
+      additionalProperties: true
+      oneOf:
+      - properties:
+          has_more:
+            const: true
+          next_cursor:
+            type: string
+            minLength: 1
+      - properties:
+          has_more:
+            const: false
+          next_cursor:
+            type: 'null'
+    RevisionsPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/RevisionSummary'
+        next_cursor:
+          anyOf:
+          - type: string
+          - type: 'null'
+        has_more:
+          type: boolean
+      required:
+      - items
+      - next_cursor
+      - has_more
+      additionalProperties: true
+      oneOf:
+      - properties:
+          has_more:
+            const: true
+          next_cursor:
+            type: string
+            minLength: 1
+      - properties:
+          has_more:
+            const: false
+          next_cursor:
+            type: 'null'
+    CapturesPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/SourceCapture'
+        next_cursor:
+          anyOf:
+          - type: string
+          - type: 'null'
+        has_more:
+          type: boolean
+      required:
+      - items
+      - next_cursor
+      - has_more
+      additionalProperties: true
+      oneOf:
+      - properties:
+          has_more:
+            const: true
+          next_cursor:
+            type: string
+            minLength: 1
+      - properties:
+          has_more:
+            const: false
+          next_cursor:
+            type: 'null'
+    JobsPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Job'
+        next_cursor:
+          anyOf:
+          - type: string
+          - type: 'null'
+        has_more:
+          type: boolean
+      required:
+      - items
+      - next_cursor
+      - has_more
+      additionalProperties: true
+      oneOf:
+      - properties:
+          has_more:
+            const: true
+          next_cursor:
+            type: string
+            minLength: 1
+      - properties:
+          has_more:
+            const: false
+          next_cursor:
+            type: 'null'
+    AttemptsPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Attempt'
+        next_cursor:
+          anyOf:
+          - type: string
+          - type: 'null'
+        has_more:
+          type: boolean
+      required:
+      - items
+      - next_cursor
+      - has_more
+      additionalProperties: true
+      oneOf:
+      - properties:
+          has_more:
+            const: true
+          next_cursor:
+            type: string
+            minLength: 1
+      - properties:
+          has_more:
+            const: false
+          next_cursor:
+            type: 'null'
+    LlmCallsPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/LlmCall'
+        next_cursor:
+          anyOf:
+          - type: string
+          - type: 'null'
+        has_more:
+          type: boolean
+      required:
+      - items
+      - next_cursor
+      - has_more
+      additionalProperties: true
+      oneOf:
+      - properties:
+          has_more:
+            const: true
+          next_cursor:
+            type: string
+            minLength: 1
+      - properties:
+          has_more:
+            const: false
+          next_cursor:
+            type: 'null'
+    RenderSetsPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/RenderSet'
+        next_cursor:
+          anyOf:
+          - type: string
+          - type: 'null'
+        has_more:
+          type: boolean
+      required:
+      - items
+      - next_cursor
+      - has_more
+      additionalProperties: true
+      oneOf:
+      - properties:
+          has_more:
+            const: true
+          next_cursor:
+            type: string
+            minLength: 1
+      - properties:
+          has_more:
+            const: false
+          next_cursor:
+            type: 'null'

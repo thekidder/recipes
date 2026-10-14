@@ -1,0 +1,191 @@
+{
+  "contract_version": "1.0.0-draft.3",
+  "description": "Synthetic independent API exchanges for iOS mocks and contract validation. Secrets/origins are fake; assets are descriptors only. Reused Idempotency-Key values are scoped to each independent scenario. Paths contain placeholders to bind from fixture IDs.",
+  "scenarios": [
+    {
+      "file": "create_user.json",
+      "operation_id": "createUser",
+      "status": 201
+    },
+    {
+      "file": "create_qr.json",
+      "operation_id": "createEnrollment",
+      "status": 201
+    },
+    {
+      "file": "redeem_qr.json",
+      "operation_id": "redeemEnrollment",
+      "status": 201
+    },
+    {
+      "file": "reused_qr.json",
+      "operation_id": "redeemEnrollment",
+      "status": 410
+    },
+    {
+      "file": "redeemed_status.json",
+      "operation_id": "getEnrollment",
+      "status": 200
+    },
+    {
+      "file": "status.json",
+      "operation_id": "getStatus",
+      "status": 200
+    },
+    {
+      "file": "import_text.json",
+      "operation_id": "createImport",
+      "status": 202
+    },
+    {
+      "file": "import_replay.json",
+      "operation_id": "createImport",
+      "status": 202
+    },
+    {
+      "file": "idempotency_conflict.json",
+      "operation_id": "createImport",
+      "status": 409
+    },
+    {
+      "file": "unsupported_url.json",
+      "operation_id": "createImport",
+      "status": 422
+    },
+    {
+      "file": "job_queued.json",
+      "operation_id": "getJob",
+      "status": 200
+    },
+    {
+      "file": "job_extracted.json",
+      "operation_id": "getJob",
+      "status": 200
+    },
+    {
+      "file": "job_configuration_missing.json",
+      "operation_id": "getJob",
+      "status": 200
+    },
+    {
+      "file": "retry_stage.json",
+      "operation_id": "retryJob",
+      "status": 202
+    },
+    {
+      "file": "source_capture.json",
+      "operation_id": "getSourceCapture",
+      "status": 200
+    },
+    {
+      "file": "ready_recipe.json",
+      "operation_id": "getRecipe",
+      "status": 200
+    },
+    {
+      "file": "pending_recipe.json",
+      "operation_id": "getRecipe",
+      "status": 200
+    },
+    {
+      "file": "library.json",
+      "operation_id": "listRecipes",
+      "status": 200
+    },
+    {
+      "file": "revision.json",
+      "operation_id": "getRevision",
+      "status": 200
+    },
+    {
+      "file": "render_set.json",
+      "operation_id": "getRenderSet",
+      "status": 200
+    },
+    {
+      "file": "render_cache_hit.json",
+      "operation_id": "ensureRender",
+      "status": 200
+    },
+    {
+      "file": "render_queued.json",
+      "operation_id": "ensureRender",
+      "status": 202
+    },
+    {
+      "file": "save_edit.json",
+      "operation_id": "saveRevision",
+      "status": 201
+    },
+    {
+      "file": "edit_conflict.json",
+      "operation_id": "saveRevision",
+      "status": 409
+    },
+    {
+      "file": "invalid_markdown.json",
+      "operation_id": "saveRevision",
+      "status": 422
+    },
+    {
+      "file": "candidate_list.json",
+      "operation_id": "listRevisions",
+      "status": 200
+    },
+    {
+      "file": "accept_candidate.json",
+      "operation_id": "acceptCandidate",
+      "status": 200
+    },
+    {
+      "file": "publication_selected.json",
+      "operation_id": "createPublication",
+      "status": 201
+    },
+    {
+      "file": "device_selected.json",
+      "operation_id": "getDevice",
+      "status": 200
+    },
+    {
+      "file": "device_fetched.json",
+      "operation_id": "getDevice",
+      "status": 200
+    },
+    {
+      "file": "legacy_device.json",
+      "operation_id": "getDevice",
+      "status": 200
+    },
+    {
+      "file": "archived.json",
+      "operation_id": "archiveRecipe",
+      "status": 200
+    },
+    {
+      "file": "archive_reconciliation.json",
+      "operation_id": "listRecipes",
+      "status": 200
+    },
+    {
+      "file": "revoked_token.json",
+      "operation_id": "getStatus",
+      "status": 401
+    },
+    {
+      "file": "revoked_credential.json",
+      "operation_id": "revokeCredential",
+      "status": 200
+    },
+    {
+      "file": "attempt.json",
+      "operation_id": "listAttempts",
+      "status": 200
+    },
+    {
+      "file": "llm_call.json",
+      "operation_id": "getLlmCall",
+      "status": 200
+    }
+  ]
+}

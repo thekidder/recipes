@@ -1,0 +1,55 @@
+{
+  "name": "llm_call",
+  "operation_id": "getLlmCall",
+  "notes": "Synthetic asset descriptors; no live provider invocation or asset files exist.",
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json",
+      "Cache-Control": "no-store",
+      "X-Request-ID": "request_llm_call"
+    },
+    "body": {
+      "id": "call_example",
+      "attempt_id": "attempt_extract_1",
+      "sequence": 1,
+      "provider": "openai",
+      "requested_model": "example-model",
+      "reported_model": null,
+      "provider_request_id": null,
+      "prompt_version": "example-prompt-v1",
+      "adapter_version": "example-adapter-v1",
+      "status": "succeeded",
+      "started_at": "2026-10-13T18:00:00.000Z",
+      "finished_at": "2026-10-13T18:00:00.000Z",
+      "request_asset": {
+        "id": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "media_type": "application/json",
+        "byte_size": 100,
+        "href": "/api/v1/assets/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+      },
+      "response_asset": {
+        "id": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "media_type": "application/json",
+        "byte_size": 100,
+        "href": "/api/v1/assets/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+      },
+      "structured_output_asset": {
+        "id": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "media_type": "application/json",
+        "byte_size": 100,
+        "href": "/api/v1/assets/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+      },
+      "usage": null,
+      "error": null,
+      "request_id": "request_llm_call"
+    }
+  },
+  "method": "GET",
+  "path_template": "/api/v1/llm-calls/{call_id}",
+  "request": {
+    "headers": {
+      "Authorization": "Bearer BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBA"
+    }
+  }
+}

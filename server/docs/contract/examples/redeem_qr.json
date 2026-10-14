@@ -1,0 +1,39 @@
+{
+  "name": "redeem_qr",
+  "operation_id": "redeemEnrollment",
+  "notes": "App stores bearer token in Keychain before considering setup complete; displayed token is fake.",
+  "response": {
+    "status": 201,
+    "headers": {
+      "Content-Type": "application/json",
+      "Cache-Control": "no-store",
+      "X-Request-ID": "request_redeem_qr",
+      "Location": "/api/v1/status"
+    },
+    "body": {
+      "user": {
+        "id": "user_alex",
+        "display_name": "Alex"
+      },
+      "credential": {
+        "id": "credential_phone",
+        "user_id": "user_alex",
+        "label": "Alex’s iPhone",
+        "created_at": "2026-10-13T18:00:00.000Z",
+        "revoked_at": null
+      },
+      "access_token": "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBA",
+      "token_type": "Bearer",
+      "server_id": "server_demo"
+    }
+  },
+  "request": {
+    "content_type": "application/json",
+    "body": {
+      "code": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+    },
+    "headers": {}
+  },
+  "method": "POST",
+  "path_template": "/api/v1/enrollments/redeem"
+}

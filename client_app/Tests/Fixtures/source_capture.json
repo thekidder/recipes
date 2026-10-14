@@ -1,0 +1,51 @@
+{
+  "name": "source_capture",
+  "operation_id": "getSourceCapture",
+  "notes": "",
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json",
+      "Cache-Control": "no-store",
+      "X-Request-ID": "request_source_capture"
+    },
+    "body": {
+      "id": "capture_text",
+      "recipe_id": "recipe_salad",
+      "previous_capture_id": null,
+      "kind": "text",
+      "submitted_url": null,
+      "resolved_url": null,
+      "state": "complete",
+      "submitted_at": "2026-10-13T18:00:00.000Z",
+      "captured_at": "2026-10-13T18:00:00.000Z",
+      "created_by": {
+        "id": "user_alex",
+        "display_name": "Alex"
+      },
+      "metadata": {},
+      "error": null,
+      "assets": [
+        {
+          "role": "original_text",
+          "ordinal": 0,
+          "original_filename": null,
+          "asset": {
+            "id": "abbd4854575e2fc079dbe9f519054e4cda3e94357dca3fbb3aa2e3db3e34c784",
+            "media_type": "text/plain; charset=utf-8",
+            "byte_size": 100,
+            "href": "/api/v1/assets/abbd4854575e2fc079dbe9f519054e4cda3e94357dca3fbb3aa2e3db3e34c784"
+          }
+        }
+      ],
+      "request_id": "request_source_capture"
+    }
+  },
+  "method": "GET",
+  "path_template": "/api/v1/source-captures/{capture_id}",
+  "request": {
+    "headers": {
+      "Authorization": "Bearer BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBA"
+    }
+  }
+}

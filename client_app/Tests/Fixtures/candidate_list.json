@@ -1,0 +1,43 @@
+{
+  "name": "candidate_list",
+  "operation_id": "listRevisions",
+  "notes": "Use scope=candidates. Existing current user edit is preserved.",
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json",
+      "Cache-Control": "no-store",
+      "X-Request-ID": "request_candidate_list"
+    },
+    "body": {
+      "items": [
+        {
+          "id": "revision_candidate",
+          "recipe_id": "recipe_salad",
+          "parent_revision_id": "revision_edit",
+          "source_capture_id": "capture_text",
+          "generated_by_attempt_id": "attempt_extract_1",
+          "origin": "extraction",
+          "title": "Lemon chickpea salad",
+          "warnings": [],
+          "created_by": {
+            "id": "user_alex",
+            "display_name": "Alex"
+          },
+          "created_at": "2026-10-13T18:00:00.000Z",
+          "is_current": false,
+          "is_candidate": true
+        }
+      ],
+      "next_cursor": null,
+      "has_more": false
+    }
+  },
+  "method": "GET",
+  "path_template": "/api/v1/recipes/{recipe_id}/revisions",
+  "request": {
+    "headers": {
+      "Authorization": "Bearer BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBA"
+    }
+  }
+}

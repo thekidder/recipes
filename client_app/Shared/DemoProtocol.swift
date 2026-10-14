@@ -1,0 +1,79 @@
+#if canImport(UIKit)
+import Foundation
+import UIKit
+
+// Used only by the explicit debug demo. Never intercepts the real client's session.
+final class DemoProtocol: URLProtocol, @unchecked Sendable {
+    static func session() -> URLSession {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [DemoProtocol.self]
+        return URLSession(configuration: config)
+    }
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func stopLoading() {}
+    override func startLoading() {
+        do {
+            let path = request.url!.path
+            var fixture: String
+            var status = 200
+            switch path {
+            case "/api/v1/status": fixture = "status"
+            case "/api/v1/imports": fixture = "import_text"; status = 202
+            case "/api/v1/jobs/job_extract": fixture = "job_extracted"
+            case "/api/v1/jobs/job_render": fixture = "job_extracted"
+            case "/api/v1/jobs/job_capture": fixture = "job_extracted"
+            case "/api/v1/revisions/revision_initial": fixture = "revision"
+            case "/api/v1/render-sets/render_initial": fixture = "render_set"
+            case "/api/v1/publications": fixture = "publication_selected"; status = 201
+            case "/api/v1/device": fixture = "device_selected"
+            default:
+                if path.hasPrefix("/api/v1/assets/") {
+                    let data = try Data(contentsOf: Bundle.main.url(forResource: "demo-preview", withExtension: "png")!)
+                    finish(data, status: 200, type: "image/png"); return
+                }
+                throw ClientError("No demo fixture for this operation.")
+            }
+            guard let file = Bundle.main.url(forResource: fixture, withExtension: "json") else { throw ClientError("Missing demo fixture.") }
+            let envelope = try JSONSerialization.jsonObject(with: Data(contentsOf: file)) as! [String: Any]
+            var body = (envelope["response"] as! [String: Any])["body"] as! [String: Any]
+            if path == "/api/v1/imports" {
+                if try importKind() == "url" {
+                    body["job_id"] = "job_capture"
+                }
+            }
+            if path == "/api/v1/jobs/job_capture" {
+                body["id"] = "job_capture"; body["kind"] = "capture"; body["downstream_job_ids"] = ["job_extract"]
+                body["result"] = ["source_capture_id": "capture_initial"]
+            }
+            if path == "/api/v1/jobs/job_render" {
+                body["id"] = "job_render"; body["kind"] = "render"; body["downstream_job_ids"] = []
+                body["result"] = ["revision_id": "revision_initial", "render_set_id": "render_initial"]
+            }
+            finish(try JSONSerialization.data(withJSONObject: body), status: status, type: "application/json")
+        } catch { client?.urlProtocol(self, didFailWithError: error) }
+    }
+    private func importKind() throws -> String? {
+        guard request.value(forHTTPHeaderField: "Content-Type") == "application/json" else { return nil }
+        var data = request.httpBody ?? Data()
+        if let stream = request.httpBodyStream {
+            stream.open(); defer { stream.close() }
+            var bytes = [UInt8](repeating: 0, count: 4096)
+            while true {
+                let count = stream.read(&bytes, maxLength: bytes.count)
+                guard count >= 0 else { throw ClientError("Could not read demo import.") }
+                if count == 0 { break }
+                data.append(contentsOf: bytes.prefix(count))
+                guard data.count <= 1_048_576 else { throw ClientError("Demo import exceeds the text limit.") }
+            }
+        }
+        return (try JSONSerialization.jsonObject(with: data) as? [String: Any])?["kind"] as? String
+    }
+    private func finish(_ data: Data, status: Int, type: String) {
+        client?.urlProtocol(self, didReceive: HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: nil,
+            headerFields: ["Content-Type": type])!, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: data)
+        client?.urlProtocolDidFinishLoading(self)
+    }
+}
+#endif

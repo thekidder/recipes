@@ -1,0 +1,40 @@
+# Credentials and machine-local configuration (keep safe example templates).
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.mobileprovision
+.aws/
+.ssh/
+
+# macOS and editor state.
+.DS_Store
+._*
+*.swp
+*.swo
+
+# Python environments and generated caches.
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Swift and Xcode build outputs and personal settings.
+.build/
+DerivedData/
+xcuserdata/
+*.xcuserstate
+*.xcarchive/
+*.ipa
+
+# Runtime state may contain user content and credentials.
+/server/data/
+/client_app/Config/Local.xcconfig

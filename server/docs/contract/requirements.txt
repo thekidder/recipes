@@ -1,0 +1,4 @@
+# Contract validation only; do not add these to server runtime dependencies.
+openapi-spec-validator==0.7.2
+jsonschema==4.26.0
+PyYAML==6.0.3

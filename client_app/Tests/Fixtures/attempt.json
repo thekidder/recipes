@@ -1,0 +1,36 @@
+{
+  "name": "attempt",
+  "operation_id": "listAttempts",
+  "notes": "",
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json",
+      "Cache-Control": "no-store",
+      "X-Request-ID": "request_attempt"
+    },
+    "body": {
+      "items": [
+        {
+          "id": "attempt_extract_1",
+          "job_id": "job_extract",
+          "attempt_number": 1,
+          "status": "succeeded",
+          "started_at": "2026-10-13T18:00:00.000Z",
+          "finished_at": "2026-10-13T18:00:00.000Z",
+          "error": null,
+          "llm_calls_href": "/api/v1/attempts/attempt_extract_1/llm-calls"
+        }
+      ],
+      "next_cursor": null,
+      "has_more": false
+    }
+  },
+  "method": "GET",
+  "path_template": "/api/v1/jobs/{job_id}/attempts",
+  "request": {
+    "headers": {
+      "Authorization": "Bearer BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBA"
+    }
+  }
+}

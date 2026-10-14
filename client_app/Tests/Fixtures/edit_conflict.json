@@ -1,0 +1,38 @@
+{
+  "name": "edit_conflict",
+  "operation_id": "saveRevision",
+  "notes": "",
+  "response": {
+    "status": 409,
+    "headers": {
+      "Content-Type": "application/json",
+      "Cache-Control": "no-store",
+      "X-Request-ID": "request_edit_conflict"
+    },
+    "body": {
+      "error": {
+        "code": "revision_conflict",
+        "message": "Recipe changed. Reload and compare your edits before saving.",
+        "retryable": false,
+        "details": {
+          "current_revision_id": "revision_edit",
+          "lock_version": 2
+        }
+      },
+      "request_id": "request_edit_conflict"
+    }
+  },
+  "request": {
+    "content_type": "application/json",
+    "body": {
+      "expected_lock_version": 1,
+      "markdown": "---\nformat: erecipe/v1\ntitle: Lemon chickpea salad\nservings: \"4\"\nlayout: ingredients-method\n---\n\n## Ingredients\n\n- 2 cans chickpeas, drained\n- 2 tbsp lemon juice\n\n## Method\n\n1. Mix the chickpeas with lemon juice.\n2. Serve chilled.\n"
+    },
+    "headers": {
+      "Idempotency-Key": "11111111-1111-4111-8111-111111111111",
+      "Authorization": "Bearer BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBA"
+    }
+  },
+  "method": "POST",
+  "path_template": "/api/v1/recipes/{recipe_id}/revisions"
+}

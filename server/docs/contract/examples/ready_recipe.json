@@ -1,0 +1,66 @@
+{
+  "name": "ready_recipe",
+  "operation_id": "getRecipe",
+  "notes": "",
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json",
+      "Cache-Control": "no-store",
+      "X-Request-ID": "request_ready_recipe"
+    },
+    "body": {
+      "id": "recipe_salad",
+      "current_revision_id": "revision_initial",
+      "title": "Lemon chickpea salad",
+      "lock_version": 1,
+      "created_by": {
+        "id": "user_alex",
+        "display_name": "Alex"
+      },
+      "created_at": "2026-10-13T18:00:00.000Z",
+      "updated_at": "2026-10-13T18:00:00.000Z",
+      "archived_at": null,
+      "candidate_count": 0,
+      "processing": {
+        "active_job_count": 0,
+        "failed_job_count": 0,
+        "latest_job_id": "job_render",
+        "jobs_href": "/api/v1/recipes/recipe_salad/jobs",
+        "current_preview": "ready",
+        "current_render_set_id": "render_initial"
+      },
+      "current_revision": {
+        "id": "revision_initial",
+        "recipe_id": "recipe_salad",
+        "parent_revision_id": null,
+        "source_capture_id": "capture_text",
+        "generated_by_attempt_id": "attempt_extract_1",
+        "origin": "extraction",
+        "title": "Lemon chickpea salad",
+        "warnings": [],
+        "created_by": {
+          "id": "user_alex",
+          "display_name": "Alex"
+        },
+        "created_at": "2026-10-13T18:00:00.000Z",
+        "is_current": true,
+        "is_candidate": false,
+        "markdown": "---\nformat: erecipe/v1\ntitle: Lemon chickpea salad\nservings: \"4\"\nlayout: ingredients-method\n---\n\n## Ingredients\n\n- 2 cans chickpeas, drained\n- 2 tbsp lemon juice\n\n## Method\n\n1. Mix the chickpeas with lemon juice.\n2. Serve chilled.\n",
+        "markdown_sha256": "3f43cfba6c72635bb8281b2c33f4cffbd6bf7174fa5df6eeede07be221bb7b8e",
+        "format": "erecipe/v1"
+      },
+      "revisions_href": "/api/v1/recipes/recipe_salad/revisions",
+      "candidates_href": "/api/v1/recipes/recipe_salad/revisions?scope=candidates",
+      "source_captures_href": "/api/v1/recipes/recipe_salad/source-captures",
+      "jobs_href": "/api/v1/recipes/recipe_salad/jobs"
+    }
+  },
+  "method": "GET",
+  "path_template": "/api/v1/recipes/{recipe_id}",
+  "request": {
+    "headers": {
+      "Authorization": "Bearer BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBA"
+    }
+  }
+}

@@ -1,0 +1,60 @@
+{
+  "name": "status",
+  "operation_id": "getStatus",
+  "notes": "Illustrates proposed first-text milestone capabilities, not actual server availability.",
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json",
+      "Cache-Control": "no-store",
+      "X-Request-ID": "request_status"
+    },
+    "body": {
+      "api_version": "1",
+      "contract_version": "1.0.0-draft.3",
+      "server_id": "server_demo",
+      "user": {
+        "id": "user_alex",
+        "display_name": "Alex"
+      },
+      "capabilities": {
+        "import_kinds": [
+          "text"
+        ],
+        "source_refresh": false,
+        "publication": true,
+        "archive": true,
+        "render_profile_ids": [
+          "trmnl-x-landscape-v1"
+        ],
+        "limits": {
+          "text_characters": 100000,
+          "json_body_bytes": 1048576,
+          "url_characters": 8192,
+          "image_count": 6,
+          "image_file_bytes": 10485760,
+          "image_total_bytes": 31457280,
+          "multipart_body_bytes": 32505856,
+          "image_pixels": 20000000,
+          "image_media_types": [
+            "image/jpeg",
+            "image/png"
+          ]
+        }
+      },
+      "readiness": {
+        "worker": "ready",
+        "extraction": "ready",
+        "rendering": "ready",
+        "issues": []
+      }
+    }
+  },
+  "method": "GET",
+  "path_template": "/api/v1/status",
+  "request": {
+    "headers": {
+      "Authorization": "Bearer BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBA"
+    }
+  }
+}

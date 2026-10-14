@@ -1,0 +1,47 @@
+{
+  "name": "pending_recipe",
+  "operation_id": "getRecipe",
+  "notes": "",
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json",
+      "Cache-Control": "no-store",
+      "X-Request-ID": "request_pending_recipe"
+    },
+    "body": {
+      "id": "recipe_salad",
+      "current_revision_id": null,
+      "title": null,
+      "lock_version": 0,
+      "created_by": {
+        "id": "user_alex",
+        "display_name": "Alex"
+      },
+      "created_at": "2026-10-13T18:00:00.000Z",
+      "updated_at": "2026-10-13T18:00:00.000Z",
+      "archived_at": null,
+      "candidate_count": 0,
+      "processing": {
+        "active_job_count": 1,
+        "failed_job_count": 0,
+        "latest_job_id": "job_extract",
+        "jobs_href": "/api/v1/recipes/recipe_salad/jobs",
+        "current_preview": "none",
+        "current_render_set_id": null
+      },
+      "current_revision": null,
+      "revisions_href": "/api/v1/recipes/recipe_salad/revisions",
+      "candidates_href": "/api/v1/recipes/recipe_salad/revisions?scope=candidates",
+      "source_captures_href": "/api/v1/recipes/recipe_salad/source-captures",
+      "jobs_href": "/api/v1/recipes/recipe_salad/jobs"
+    }
+  },
+  "method": "GET",
+  "path_template": "/api/v1/recipes/{recipe_id}",
+  "request": {
+    "headers": {
+      "Authorization": "Bearer BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBA"
+    }
+  }
+}

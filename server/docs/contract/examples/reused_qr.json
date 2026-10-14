@@ -1,0 +1,31 @@
+{
+  "name": "reused_qr",
+  "operation_id": "redeemEnrollment",
+  "notes": "",
+  "response": {
+    "status": 410,
+    "headers": {
+      "Content-Type": "application/json",
+      "Cache-Control": "no-store",
+      "X-Request-ID": "request_reused_qr"
+    },
+    "body": {
+      "error": {
+        "code": "enrollment_unavailable",
+        "message": "This enrollment is no longer available. Ask the server operator for a new QR code.",
+        "retryable": false,
+        "details": {}
+      },
+      "request_id": "request_reused_qr"
+    }
+  },
+  "request": {
+    "content_type": "application/json",
+    "body": {
+      "code": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+    },
+    "headers": {}
+  },
+  "method": "POST",
+  "path_template": "/api/v1/enrollments/redeem"
+}

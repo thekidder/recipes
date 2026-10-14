@@ -1,0 +1,53 @@
+{
+  "name": "job_configuration_missing",
+  "operation_id": "getJob",
+  "notes": "Original text remains durably stored.",
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json",
+      "Cache-Control": "no-store",
+      "X-Request-ID": "request_job_configuration_missing"
+    },
+    "body": {
+      "id": "job_extract",
+      "recipe_id": "recipe_salad",
+      "parent_job_id": null,
+      "kind": "extract",
+      "status": "failed",
+      "source_capture_id": "capture_text",
+      "input_revision_id": null,
+      "base_revision_id": null,
+      "requested_by": {
+        "id": "user_alex",
+        "display_name": "Alex"
+      },
+      "created_at": "2026-10-13T18:00:00.000Z",
+      "finished_at": "2026-10-13T18:00:00.000Z",
+      "attempt_count": 1,
+      "retry_allowed": true,
+      "cancel_allowed": false,
+      "error": {
+        "code": "configuration_missing",
+        "message": "Configure OpenAI on the server, then retry.",
+        "retryable": true,
+        "details": {}
+      },
+      "result": {
+        "source_capture_id": null,
+        "revision_id": null,
+        "render_set_id": null
+      },
+      "downstream_job_ids": [],
+      "attempts_href": "/api/v1/jobs/job_extract/attempts",
+      "request_id": "request_job_configuration_missing"
+    }
+  },
+  "method": "GET",
+  "path_template": "/api/v1/jobs/{job_id}",
+  "request": {
+    "headers": {
+      "Authorization": "Bearer BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBA"
+    }
+  }
+}
