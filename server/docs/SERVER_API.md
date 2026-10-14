@@ -34,7 +34,7 @@ Install dependencies from the project root:
 server/.venv/bin/python -m pip install -r server/requirements.txt
 ```
 
-Configure the server-only OpenAI key and model using [PROCESSING.md](PROCESSING.md). The existing `server/.env` loader works for the integrated launcher. Do not replace an existing credential file. The worker makes provider calls when it processes accepted imports; API integration tests use a mocked provider.
+Configure the server-only OpenAI or OpenRouter key and model using [PROCESSING.md](PROCESSING.md). Select the provider with `ERECIPE_LLM_PROVIDER` (defaults to `openai`). The existing `server/.env` loader works for the integrated launcher. Do not replace an existing credential file. The worker makes provider calls when it processes accepted imports; API integration tests use a mocked provider.
 
 Configure Tailscale Serve to proxy to the application's dedicated loopback port:
 
@@ -78,7 +78,7 @@ If the phone loses the successful exchange response, its credential still appear
 
 ## Processing and publication
 
-Import acceptance is `202`, not a successful extraction or delivery. Follow stage jobs and their downstream references, or poll recipe detail. Missing OpenAI configuration preserves the input and produces a retryable configuration error. Restart the server after setting the key, then explicitly retry the failed stage.
+Import acceptance is `202`, not a successful extraction or delivery. Follow stage jobs and their downstream references, or poll recipe detail. Missing configuration for the selected provider preserves the input and produces a retryable configuration error. Restart the server after setting the key and model, then explicitly retry the failed stage.
 
 Saving Markdown creates a revision and queues rendering without another provider call. Re-extraction creates a candidate when a current revision exists. Accepting a candidate changes the current revision with an optimistic version check, and retains the old revision. Rendering and accepting never send a recipe automatically.
 

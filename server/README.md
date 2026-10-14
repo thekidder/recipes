@@ -1,6 +1,6 @@
 # eRecipe server
 
-The server now includes the shared recipe API, QR-based phone enrollment, processing worker, and explicit publication to the reader. Start with [application server and Tailscale Serve setup](docs/SERVER_API.md). The [authoritative API contract](docs/openapi.yaml) covers iOS requests; [processing jobs and OpenAI setup](docs/PROCESSING.md) describes extraction and rendering.
+The server now includes the shared recipe API, QR-based phone enrollment, processing worker, and explicit publication to the reader. Start with [application server and Tailscale Serve setup](docs/SERVER_API.md). The [authoritative API contract](docs/openapi.yaml) covers iOS requests; [processing jobs and OpenAI/OpenRouter setup](docs/PROCESSING.md) describes extraction and rendering.
 
 The existing reader experiment remains available: a single TRMNL X polls the LAN server, initially every **20 seconds**. Use the browser to publish A/B fixtures, measure delivery, and run a battery soak. Stock firmware cannot be woken by a server publication. Requested sleep plus wake/network/display time determines the actual interval.
 
@@ -40,6 +40,24 @@ Setup is idempotent for the paired MAC. Restarts preserve pairing, polling setti
 **Restore:** hold both touch-bar ends, reconnect to the TRMNL portal, and restore the previous custom origin. For TRMNL's hosted service, follow the official rollback: Advanced → Soft Reset, then normal Wi-Fi setup with the API Server URL completely blank. This resets device configuration; record settings first. The server never requests firmware reset or OTA.
 
 ## Modes and measurements
+
+### Two-page tap trial
+
+After restarting the server with the updated code, open the dashboard (localhost or your configured Tailscale Serve origin):
+
+1. Click **Start / restart two-page trial**. This selects page 1 of a fixed Lemon chickpea salad recipe (ingredients), with the method on page 2. Both images are prepared before selection. The polling interval stays unchanged.
+2. Wait for **PAGE 1 / 2** on the X. You may tap the **center** once to wake it and retrieve page 1; this first request does not skip ahead before its image has been fetched.
+3. Once the screen finishes updating, tap the **center** again. Expect **PAGE 2 / 2**. Subsequent center taps alternate 2 → 1 → 2. Wait for each update; requests within three seconds of an advance are ignored.
+4. Leave the reader alone for at least two polling cycles. The selected page should stay unchanged. The trial panel shows the page, advance count, last wake source, and the server's decision. Use **Confirm selected publication visible now** to record what you actually see. Film taps and the screen if measuring page-turn latency.
+5. Click **Stop and restore previous image** to restore the selection and mode from before the trial on the next check-in. Restarting an active trial creates fresh images and resets to page 1 while retaining the original restore target. Publishing another image/phone recipe or selecting another mode ends the trial without restoring the old selection.
+
+The fixed two-page fixture is a hardware experiment, not automatic pagination of imported recipes. Trial state survives server restarts. **Force new image** is disabled for trial images; use the trial restart button instead.
+
+Detection uses authenticated `/api/display` requests with `Update-Source: button`, `EXT0`, or `EXT1` (case-insensitive); `timer`, power cycles, missing and unknown sources hold the page. Requests reporting `Image-Cached: true` also hold. The stock X normally handles left/right cache navigation locally, so use the center only. A wake reason does **not** identify a particular gesture: holds or failed cache navigation can also reach this path. If center taps do nothing, inspect **Latest reported telemetry** and `tap_trial_input` events rather than treating every wake as a tap.
+
+The first fetch of each trial page gates further advancement; previously fetched pages may be reused from device cache. A fetch is not proof of completed display. The three-second debounce reduces duplicate advances, but stock firmware provides no unique input ID, so delayed HTTP retries cannot be distinguished perfectly from a new tap. Hardware gesture behavior, cache behavior, and latency remain unverified until this procedure is run on the installed firmware.
+
+### Battery modes
 
 - **Static / soak (default):** check-ins update logs/dashboard without changing image bytes or filename. Normal polls never render an image.
 - **Diagnostic snapshot:** explicit button publishes an image with the preceding sample and its age. It costs an extra redraw. An on-image timestamp is generation time, not screen completion.

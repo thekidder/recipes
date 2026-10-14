@@ -3,6 +3,7 @@ from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 from io import BytesIO
 import json
+import logging
 from pathlib import Path
 import sqlite3
 from unittest.mock import patch
@@ -147,6 +148,86 @@ def test_failed_model_results_never_create_revision(library, kind, expected):
     call = library.one("SELECT * FROM llm_calls")
     assert bool(call["response_asset_id"]) == (kind != "timeout")
     assert call["status"] == ("succeeded" if kind == "not_recipe" else "failed")
+
+
+@pytest.mark.parametrize("reason", ["content_filter", "max_output_tokens", "future_reason"])
+def test_incomplete_response_diagnostics_reach_job_and_logs(library, caplog, reason):
+    caplog.set_level(logging.INFO, logger="server.recipes.openai")
+    payload = response(status="incomplete", incomplete_details={"reason": reason}, output=[],
+                       usage={"input_tokens": 0, "output_tokens": 0, "total_tokens": 0})
+    job = submit(library)
+    worker(library, lambda _: httpx.Response(200, json=payload, headers={"x-request-id": "req_diagnostic"})).run_once()
+    error = json.loads(library.required("jobs", job["id"])["error_json"])
+    call = library.one("SELECT * FROM llm_calls")
+    details = error["details"]
+    assert details["incomplete_reason"] == reason
+    assert details["provider_status"] == "incomplete"
+    assert details["provider_request_id"] == "req_diagnostic"
+    assert details["provider_response_id"] == "resp_test"
+    assert details["http_status"] == 200
+    assert details["usage"]["total_tokens"] == 0
+    assert details["duration_ms"] >= 0
+    assert details["response_asset_id"] == call["response_asset_id"]
+    assert details["request_asset_id"] == call["request_asset_id"]
+    assert details["job_id"] == job["id"] and details["recipe_id"] == job["recipe_id"]
+    assert json.loads(call["error_json"])["details"] == details
+    if reason == "content_filter":
+        assert "content filter" in error["message"]
+    if reason == "max_output_tokens":
+        assert "token limit" in error["message"]
+    finished = [r for r in caplog.records if r.getMessage().startswith("openai_call_finished ")]
+    assert len(finished) == 1
+    event = json.loads(finished[0].getMessage().split(" ", 1)[1])
+    assert event["call_id"] == call["id"] and event["incomplete_reason"] == reason
+    assert event["status"] == "failed" and event["error_code"] == "incomplete_response"
+    assert not library.all("SELECT * FROM recipe_revisions")
+    assert SOURCE not in caplog.text and "test-secret-never-archive" not in caplog.text
+
+
+@pytest.mark.parametrize("kind", ["http", "timeout", "malformed", "schema", "success", "cancelled"])
+def test_provider_diagnostics_are_safe_and_cover_outcomes(library, caplog, kind):
+    caplog.set_level(logging.INFO, logger="server.recipes.openai")
+    job = submit(library)
+    private = "PRIVATE RECIPE TEXT and credential test-secret-never-archive"
+    def handler(request):
+        if kind == "timeout":
+            raise httpx.ReadTimeout(private, request=request)
+        if kind == "http":
+            return httpx.Response(429, json={"error": {"code": "rate_limit_exceeded", "type": "requests", "message": private},
+                                            "id": "test-secret-never-archive", "usage": {"input_tokens": private}},
+                                  headers={"x-request-id": "test-secret-never-archive"})
+        if kind == "malformed":
+            return httpx.Response(200, content=private.encode())
+        if kind == "schema":
+            payload = response()
+            payload["output"][0]["content"][0]["text"] = dumps({"title": private})
+            return httpx.Response(200, json=payload)
+        if kind == "cancelled":
+            library.cancel(job["id"])
+        return httpx.Response(200, json=response())
+    worker(library, handler).run_once()
+    call = library.one("SELECT * FROM llm_calls")
+    events = [json.loads(r.getMessage().split(" ", 1)[1]) for r in caplog.records
+              if r.getMessage().startswith("openai_call_finished ")]
+    assert len(events) == 1
+    event = events[0]
+    assert event["status"] == ("succeeded" if kind == "success" else "abandoned" if kind == "cancelled" else "failed")
+    assert private not in caplog.text and "test-secret-never-archive" not in caplog.text
+    assert "PRIVATE RECIPE TEXT" not in (call["error_json"] or "")
+    assert "test-secret-never-archive" not in (call["error_json"] or "")
+    if kind == "http":
+        assert event["provider_error_code"] == "rate_limit_exceeded"
+        assert event["provider_error_type"] == "requests" and event["http_status"] == 429
+        assert event["provider_request_id"] is None
+    elif kind == "timeout":
+        assert event["exception_type"] == "ReadTimeout"
+        assert event["error_code"] == "provider_timeout"
+        assert call["response_asset_id"] is None
+    elif kind == "schema":
+        assert event["validation_error_count"] > 0
+    elif kind == "success":
+        assert event["usage"]["input_tokens"] == 150
+        assert event["error_code"] is None
 
 
 def test_cancellation_during_network_call_discards_result_but_preserves_response(library):

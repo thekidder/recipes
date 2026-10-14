@@ -1,6 +1,6 @@
 # Recipe extraction and processing jobs
 
-The processing domain is ready for local testing independently of the application API. It accepts plain text and ordered JPEG/PNG/WebP images, preserves originals, records every OpenAI call, creates Markdown revisions, and generates cached one-bit PNG previews. The worker does not publish images to the reader. The integrated application API and iOS client support text, image, and public recipe URL sharing.
+The processing domain is ready for local testing independently of the application API. It accepts plain text and ordered JPEG/PNG/WebP images, preserves originals, records every provider call, creates Markdown revisions, and generates cached one-bit PNG previews. Extraction supports OpenAI and OpenRouter. The worker does not publish images to the reader. The integrated application API and iOS client support text, image, and public recipe URL sharing.
 
 ## Configure OpenAI
 
@@ -20,6 +20,7 @@ chmod 600 server/.env
 Edit **`server/.env`** locally:
 
 ```dotenv
+ERECIPE_LLM_PROVIDER=openai
 OPENAI_API_KEY=your_actual_openai_api_key
 ERECIPE_OPENAI_MODEL=gpt-4.1-mini
 ```
@@ -27,6 +28,24 @@ ERECIPE_OPENAI_MODEL=gpt-4.1-mini
 Keep the key on the server; do not paste it into chat, the iOS application, API examples, or recipe files. `.env` and `.env.*` are ignored, except the placeholder `.env.example`. Existing process environment variables take precedence over the file. A running worker must be restarted after credentials/model changes. `ProcessingConfig` does not expose the key in its repr or readiness response.
 
 The adapter uses the [OpenAI Responses API](https://developers.openai.com/api/reference/resources/responses/methods/create), [strict structured outputs](https://developers.openai.com/api/docs/guides/structured-outputs), and `store: false`. The configurable default is `gpt-4.1-mini`, which supports text and image input. Account/model access and live extraction quality still require a real test. No live OpenAI calls were made during implementation.
+
+## Configure OpenRouter instead
+
+Set these values in the same ignored `server/.env` file:
+
+```dotenv
+ERECIPE_LLM_PROVIDER=openrouter
+OPENROUTER_API_KEY=your_actual_openrouter_api_key
+ERECIPE_OPENROUTER_MODEL=provider/model-id
+```
+
+Replace `provider/model-id` with an exact ID from the [OpenRouter model catalog](https://openrouter.ai/models). Select a model/endpoint that supports structured outputs and, for image shares, image input. The model is required explicitly; an empty key or model leaves extraction unconfigured. OpenRouter uses only `OPENROUTER_API_KEY` and `ERECIPE_OPENROUTER_MODEL`; it never borrows the OpenAI key or model. Unknown provider names fail startup. OpenAI remains the default when `ERECIPE_LLM_PROVIDER` is absent or blank.
+
+Restart the server after changes, then check `server/.venv/bin/python -m server.recipes status`. It reports the selected provider/model and whether both settings are present; it does not validate remote account access. Retry an existing failed extraction from the app to reuse its saved source. Each new call records the provider/model used, including after switching providers. There is no automatic fallback between OpenAI and OpenRouter. To switch back, set `ERECIPE_LLM_PROVIDER=openai` and restart; the existing OpenAI settings remain available.
+
+The OpenRouter adapter uses [Chat Completions](https://openrouter.ai/docs/api/reference/overview), preserving ordered text and base64 image evidence. It requests [strict JSON Schema output](https://openrouter.ai/docs/guides/features/structured-outputs) with `provider.require_parameters=true`, then validates the result locally with the same recipe schema. Unsupported models/endpoints fail explicitly; malformed, partial, refused and filtered output never creates a recipe revision. OpenRouter's routing within the selected model follows its provider preferences; `store: false` is specific to our direct OpenAI request and is not a retention guarantee for OpenRouter. Account/provider data settings remain applicable.
+
+The existing iOS imports, job polling, retry, rendering and automatic delivery flow need no client changes. The automated integration tests mock OpenRouter. A live smoke test on October 14, 2026 used the locally configured `meta/muse-wonder` model to extract a small synthetic cucumber salad recipe and render one page in a temporary library. It did not publish to the reader or retry existing user recipes. Image and URL paths are covered by mocked integration tests; live image quality still needs evaluation.
 
 ## First plain-text test
 
@@ -39,7 +58,7 @@ server/.venv/bin/python -m server.recipes --data-dir server/data/recipe-test wor
 server/.venv/bin/python -m server.recipes --data-dir server/data/recipe-test list
 ```
 
-`status` reports whether credentials are configured without showing them. Importing is local and does not call OpenAI. **Running the worker with credentials may make billable API calls.** `--drain` processes available extraction/render stages until idle; `--once` processes at most one stage. With neither flag, the worker waits for new jobs until interrupted.
+`status` reports whether credentials are configured without showing them. Importing is local and does not call a model provider. **Running the worker with credentials may make billable API calls.** `--drain` processes available extraction/render stages until idle; `--once` processes at most one stage. With neither flag, the worker waits for new jobs until interrupted.
 
 The import response includes `id` (the extraction job ID), `recipe_id`, and `source_capture_id`. A successful extraction queues rendering atomically. Inspect the recipe using the returned ID:
 
@@ -132,6 +151,17 @@ readiness = config.readiness()
 
 `RecipeError` extends `Problem` and supplies `code`, `retryable`, `details`, and `as_dict()`. It defaults to status 422 for input validation. When processing asynchronously, errors are persisted in `jobs.error_json`; the job GET itself can still return HTTP 200. `Problem.status` supplies conflict/not-found statuses for domain actions. Unexpected worker exceptions become a generic `processing_error`; logs record only exception class and job ID.
 
+Provider calls emit `openai_call_started` / `openai_call_finished` or `openrouter_call_started` / `openrouter_call_finished` log lines with a JSON diagnostic object. Both server launchers enable these messages; failed or abandoned calls log at WARNING, successful calls at INFO. With the background launch used locally, these appear in `server/data/server.log`. Find the latest calls with:
+
+```sh
+rg '(openai|openrouter)_call_(started|finished)' server/data/server.log | tail -20
+server/.venv/bin/python -m server.recipes job JOB_ID
+```
+
+Each completion includes the recipe, job, attempt and call IDs; provider and requested/reported model; prompt/adapter versions; elapsed milliseconds; request/response byte counts; token usage when supplied; HTTP status and provider request/response IDs. OpenRouter also records the generation ID, finish/native finish reason, upstream provider when present, and normalized usage counters. Provider failures retain the bounded `incomplete_reason`, provider error code/type, or exception class. OpenRouter errors inside HTTP 200 responses are also detected, including errors on individual choices; only allowlisted error metadata is logged. These diagnostics are saved in both the call and job error `details`, available through the authenticated job/attempt APIs and operator CLI. Saved request/response asset IDs locate the original bytes in the private `server/data/blobs/` directory. No database migration is needed.
+
+For an incomplete response, `content_filter` and `max_output_tokens` now produce specific user-facing messages while retaining the existing `incomplete_response` code and retry behavior. See [OpenAI structured output error handling](https://developers.openai.com/api/docs/guides/structured-outputs?api-mode=responses). A content-filter reason does not identify the triggering passage; the server cannot infer it. Unknown reasons are preserved as bounded diagnostic labels. Routine logs exclude source text, images, model output, free-form provider error/refusal text, exception messages and authorization headers. Full saved assets remain private and can contain recipe content. Existing historical records retain their original errors; these diagnostics apply to subsequent calls.
+
 The service reserves idempotency keys beginning `internal:`. HTTP limits must be enforced before buffering large request bodies; the service validation is not a substitute for transport limits. Apply authentication before accepting input. Worker internals do not authenticate HTTP clients.
 
 ### Worker lifecycle
@@ -180,4 +210,4 @@ server/.venv/bin/python -m pytest server/tests/test_processing.py -q
 server/.venv/bin/python -m pytest server/tests -q
 ```
 
-Processing tests use `httpx.MockTransport`; they do not contact OpenAI. Coverage includes source preservation, complete provenance, text-to-PNG processing, image ordering, missing credentials/retry, provider failures/refusals/incomplete output, cancellation during calls, lease recovery, concurrent claims, transaction rollback, stale edits, candidate isolation, version 1 migration, overflow, Markdown rejection, and cache repair. Run the full suite for integration changes to retain existing stage 1 coverage.
+Processing tests use `httpx.MockTransport`; they do not contact OpenAI or OpenRouter. Coverage includes provider/key isolation, text/image/URL processing through OpenRouter, source preservation, complete provenance, image ordering, missing credentials/retry, provider failures/refusals/incomplete output, HTTP 200 provider errors, cancellation during calls, lease recovery, concurrent claims, transaction rollback, stale edits, candidate isolation, version 1 migration, overflow, Markdown rejection, and cache repair. Run the full suite for integration changes to retain existing stage 1 coverage.

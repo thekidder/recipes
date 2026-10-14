@@ -16,6 +16,7 @@ from .capture import URLFetcher, Page, validate_url, page_evidence
 from .db import Library, Problem, digest, dumps
 from .document import RecipeError, parse_markdown, to_markdown
 from .openai import OpenAIExtractor
+from .openrouter import OpenRouterExtractor
 from . import renderer
 
 log = logging.getLogger(__name__)
@@ -131,7 +132,11 @@ class ProcessingService:
 class Worker:
     def __init__(self, library: Library, config=None, *, extractor=None, render_module=renderer, fetcher=None):
         self.library = library
-        self.extractor = extractor or OpenAIExtractor(config or ProcessingConfig.from_env())
+        if extractor is None:
+            config = config or ProcessingConfig.from_env()
+            extractor_type = OpenRouterExtractor if config.provider == "openrouter" else OpenAIExtractor
+            extractor = extractor_type(config)
+        self.extractor = extractor
         self.renderer = render_module
         self.fetcher = fetcher or URLFetcher()
         self.stop_event = Event()

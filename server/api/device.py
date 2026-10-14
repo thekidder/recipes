@@ -1,5 +1,6 @@
 """One device store shared by both listeners; SQLite owns selection and history."""
 from copy import deepcopy
+from contextlib import contextmanager
 from io import BytesIO
 import json
 import os
@@ -67,6 +68,13 @@ class DeviceStore(Store):
         finally:
             os.close(fd)
         return result
+
+    @contextmanager
+    def trial_update(self):
+        # Include mode/page changes as well as publication history in the same
+        # transaction, rolling memory back even if the final commit fails.
+        with super().trial_update(), self.library.connect(write=True):
+            yield
 
     def publish(self, asset, reason):
         with self.lock:

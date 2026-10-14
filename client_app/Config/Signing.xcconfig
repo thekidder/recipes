@@ -2,5 +2,5 @@
 ERECIPE_BUNDLE_PREFIX = com.example.erecipe
 ERECIPE_APP_GROUP = group.com.example.erecipe
 ERECIPE_KEYCHAIN_GROUP = $(AppIdentifierPrefix)com.example.erecipe.shared
-// Set DEVELOPMENT_TEAM in Xcode, or in a local untracked Local.xcconfig.
+// Set DEVELOPMENT_TEAM in untracked Local.xcconfig so regeneration preserves it.
 #include? "Local.xcconfig"

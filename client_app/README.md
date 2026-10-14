@@ -10,7 +10,7 @@ The **eRecipe** scheme uses the real API. The app never falls back to demo respo
 
 ## Configure a real device
 
-1. Open `Config/Signing.xcconfig`. Replace `com.example.erecipe` and its App Group with identifiers registered under your Apple Developer team. Set the same team for the app and extension. You can instead create ignored `Config/Local.xcconfig` with `DEVELOPMENT_TEAM`, `ERECIPE_BUNDLE_PREFIX`, `ERECIPE_APP_GROUP`, and `ERECIPE_KEYCHAIN_GROUP` overrides. The Keychain group must include `$(AppIdentifierPrefix)`.
+1. Create ignored `Config/Local.xcconfig` and set `DEVELOPMENT_TEAM = YOUR_TEAM_ID` there so the app and extension share the same team and project regeneration preserves it. Selecting a team only in Xcode writes it to the generated project and will be lost on regeneration. Override `ERECIPE_BUNDLE_PREFIX`, `ERECIPE_APP_GROUP`, and `ERECIPE_KEYCHAIN_GROUP` in the same file with identifiers registered under your Apple Developer team (see `Config/Signing.xcconfig` for defaults). The Keychain group must include `$(AppIdentifierPrefix)`.
 2. Enable App Groups and Keychain Sharing for both targets, with matching group identifiers. App Group files contain source bodies and workflow state; only Keychain holds bearer credentials.
 3. Deploy the server's application API at its Tailscale Serve **HTTPS origin**. The stage 1 LAN/firmware server is a different service and cannot register this client.
 4. Install the app and connect Tailscale on the phone. Create an enrollment QR in the server dashboard and scan it with Camera. The installed app handles `erecipe://enroll?v=1&server=<encoded-origin>&code=<single-use-code>`, displays the destination, and redeems after confirmation.

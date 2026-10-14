@@ -355,6 +355,55 @@ def test_one_time_json_state_migration_and_recipe_refresh(tmp_path):
     finally:api.web.close();api.lan.close()
 
 
+def test_tap_trial_shared_listeners_sqlite_restore_and_recipe_override(api, tmp_path):
+    api.pair()
+    _,recipe=api.ready()
+    body={'render_set_id':recipe['processing']['current_render_set_id'],'page_number':1}
+    api.post('/api/v1/publications',body,'createPublication',201)
+    previous=deepcopy(api.service.store.state['current'])
+    headers={'Origin':ORIGIN,'X-eRecipe-Control':'1'}
+    started=api.web.post('/control/tap-trial/start',json={},headers=headers)
+    assert started.status_code==200,started.text
+    trial=started.json()['tap_trial']
+    auth={'Access-Token':api.service.store.state['api_key'],'Update-Source':'EXT1'}
+    page_one=api.lan.get('/api/display',headers=auth).json()['filename']
+    assert page_one==trial['pages'][0]['filename']
+    api.lan.get('/images/'+page_one)
+    page_two=api.lan.get('/api/display',headers=auth).json()['filename']
+    assert page_two==trial['pages'][1]['filename']
+    persisted=json.loads(api.db.one('SELECT state_json FROM device_state WHERE id=1')['state_json'])
+    assert persisted['tap_trial']['page']==2
+    publication=api.db.one('SELECT reason FROM publications WHERE id=?',(persisted['publication_id'],))
+    assert publication['reason']=='tap-trial-advance'
+    api.get('/api/v1/device','getDevice')  # Trial selection still satisfies iOS contract.
+    _,_,restored,_=create_apps(tmp_path,LAN,ORIGIN,config=ProcessingConfig())
+    assert restored.store.state['tap_trial']['page']==2
+    restored.store.stop_tap_trial()
+    assert restored.store.state['current']==previous
+    # Original process still has its active trial; a new phone send replaces it.
+    api.post('/api/v1/publications',body,'createPublication',201)
+    assert api.service.store.state['tap_trial'] is None
+    assert api.service.store.state['current']['kind']=='RECIPE'
+    assert api.web.post('/control/tap-trial/stop',json={},headers=headers).json()['current']==api.service.store.state['current']
+
+
+def test_trial_publication_failure_keeps_page_and_selection_together(api):
+    api.pair()
+    store=api.service.store
+    store.start_tap_trial()
+    api.lan.get('/images/'+store.state['current']['filename'])
+    before=deepcopy(store.state)
+    api.db.execute("CREATE TRIGGER reject_trial BEFORE UPDATE ON publications BEGIN SELECT RAISE(ABORT,'trial failure'); END")
+    with pytest.raises(sqlite3.IntegrityError):
+        store.trial_checkin({'UPDATE_SOURCE':'EXT1'})
+    assert store.state==before
+    persisted=json.loads(api.db.one('SELECT state_json FROM device_state WHERE id=1')['state_json'])
+    assert persisted==before
+    with pytest.raises(sqlite3.IntegrityError):
+        store.stop_tap_trial()
+    assert store.state==before
+
+
 def test_limits_errors_unsafe_url_and_rate_limit(api):
     assert api.post('/api/v1/imports',{'kind':'url','url':'http://127.0.0.1/recipe'},'createImport',422)['error']['code']=='unsafe_url'
     response=api.web.post('/api/v1/imports',content=b'{"kind":"text","text":"one","text":"two"}',headers={**api.headers(),'Content-Type':'application/json'})

@@ -268,3 +268,99 @@ def test_force_refresh_cannot_overwrite_concurrent_selection(client):
     with patch("server.app.render", side_effect=interleaved_render):
         assert control(client, "force-refresh").status_code == 409
     assert client.get("/control/status").json()["current"]["kind"] == "B"
+
+
+def test_tap_trial_fetch_then_advance_hold_and_cached_return(client, tmp_path):
+    auth = pair(client)
+    assert control(client, "tap-trial/start").status_code == 200
+    store = client.app.state.store
+    trial = store.status()["tap_trial"]
+    one, two = [p["filename"] for p in trial["pages"]]
+    def display(source):
+        return client.get("/api/display", headers={**auth, "Update-Source": source}).json()["filename"]
+    # Waking the reader to pick up the trial must not skip page one.
+    assert display("EXT1") == one
+    client.get("/control/preview")
+    assert store.status()["tap_trial"]["awaiting_fetch"]
+    client.get("/images/" + one)
+    with patch("server.app.render_tap_trial", side_effect=AssertionError("tap rendered")):
+        assert display("timer") == one
+        assert display("EXT1") == two
+        assert display("EXT1") == two  # Retry before image fetch.
+        client.get("/images/" + two)
+        assert display("EXT1") == two  # Immediate repeated input is debounced.
+        store.state["tap_trial"]["last_advance_at"] = (datetime.now(timezone.utc)-timedelta(seconds=4)).isoformat()
+        assert display("timer") == two
+        assert display("button") == one
+        # Firmware can display page one from cache, without fetching again.
+        assert not store.status()["tap_trial"]["awaiting_fetch"]
+        store.state["tap_trial"]["last_advance_at"] = (datetime.now(timezone.utc)-timedelta(seconds=4)).isoformat()
+        assert display("ext0") == two
+    with TestClient(create_app(tmp_path, BASE)) as restored:
+        assert restored.get("/api/display", headers={**auth, "Update-Source": "timer"}).json()["filename"] == two
+        assert restored.get("/control/status").json()["tap_trial"]["advances"] == 3
+    events = [json.loads(line) for line in store.events_path.read_text().splitlines()]
+    assert [e["page"] for e in events if e["event"] == "tap_trial_input" and e["action"] == "advanced"] == [2, 1, 2]
+
+
+@pytest.mark.parametrize("source", [None, "timer", "powercycle", "unknown", "touchpad", "wifi"])
+def test_tap_trial_unknown_sources_never_advance(client, source):
+    auth = pair(client)
+    trial = control(client, "tap-trial/start").json()["tap_trial"]
+    first = trial["pages"][0]["filename"]
+    client.get("/images/" + first)
+    response = client.get("/api/display", headers={**auth, **({"update_source": source} if source else {})})
+    assert response.json()["filename"] == first
+    assert client.get("/control/status").json()["tap_trial"]["advances"] == 0
+
+
+def test_tap_trial_auth_and_cached_wake(client):
+    auth = pair(client)
+    assert client.post("/control/tap-trial/start").status_code == 403
+    assert client.post("/control/tap-trial/stop").status_code == 403
+    trial = control(client, "tap-trial/start").json()["tap_trial"]
+    first = trial["pages"][0]["filename"]
+    client.get("/images/" + first)
+    assert client.get("/api/display", headers={"Update-Source": "EXT1"}).status_code == 401
+    assert client.get("/api/display", headers={**auth,"UPDATE_SOURCE":"EXT1","IMAGE_CACHED":"true"}).json()["filename"] == first
+    assert client.get("/control/status").json()["tap_trial"]["last_action"] == "held_cached_navigation"
+    assert control(client, "force-refresh").status_code == 409
+
+
+def test_tap_trial_restart_stop_and_replacement(client):
+    auth = pair(client)
+    control(client, "publish", {"fixture": "B"})
+    control(client, "settings", {"mode": "snapshot", "poll_seconds": 45})
+    before = client.get("/control/status").json()
+    first = control(client, "tap-trial/start").json()
+    second = control(client, "tap-trial/start").json()
+    assert second["current"]["version"] != first["current"]["version"]
+    stopped = control(client, "tap-trial/stop").json()
+    assert stopped["current"] == before["current"]
+    assert stopped["mode"] == "snapshot" and stopped["poll_seconds"] == 45
+    assert stopped["tap_trial"] is None
+    assert control(client, "tap-trial/stop").json()["publication_id"] == stopped["publication_id"]
+    control(client, "tap-trial/start")
+    control(client, "publish", {"fixture":"A"})
+    assert client.get("/control/status").json()["tap_trial"] is None
+    assert control(client, "tap-trial/stop").json()["current"]["kind"] == "A"
+    assert client.get("/api/display", headers={**auth,"Update-Source":"EXT1"}).json()["filename"] == client.app.state.store.fixtures["A"]["filename"]
+    assert control(client, "settings", {"mode":"tap_trial","poll_seconds":20}).status_code == 409
+
+
+def test_trial_render_failure_preserves_selection(client):
+    before = client.get("/control/status").json()
+    with patch("server.app.render_tap_trial", side_effect=ValueError("overflow")):
+        with pytest.raises(ValueError):
+            control(client, "tap-trial/start")
+    after = client.get("/control/status").json()
+    assert after["current"] == before["current"] and after["tap_trial"] is None
+
+
+def test_trial_images_are_valid_and_distinct():
+    from server.render import render_tap_trial
+    images = [render_tap_trial(n, "test") for n in (1, 2)]
+    assert images[0] != images[1]
+    for data in images:
+        with Image.open(BytesIO(data)) as im:
+            assert im.mode == "1" and im.size == (1872, 1404)

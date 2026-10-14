@@ -1,118 +1,595 @@
 // !$*UTF8*$!
-{archiveVersion = 1; classes = {}; objectVersion = 56; objects = {
-E4A116DE6EA1EF90607B5FBD = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "App/HomeView.swift"; sourceTree = "<group>";};
-E72685212AF966A85FF3F9E9 = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "App/Info.plist"; sourceTree = "<group>";};
-205D88E14B9C11A5F497930A = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "App/RecipePhotoPicker.swift"; sourceTree = "<group>";};
-E9C30E955960894C73571124 = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "App/eRecipe.entitlements"; sourceTree = "<group>";};
-83706B06A55724768DD65385 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "App/eRecipeApp.swift"; sourceTree = "<group>";};
-67E24BBFAD93DAA5154614DB = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = "Config/Signing.xcconfig"; sourceTree = "<group>";};
-EC41C485640E5D21745BEDB1 = {isa = PBXFileReference; lastKnownFileType = image.png; path = "Fixtures/demo-preview.png"; sourceTree = "<group>";};
-1F167BD278F26BC1E727A82A = {isa = PBXFileReference; lastKnownFileType = text.json; path = "Fixtures/device_selected.json"; sourceTree = "<group>";};
-EA187B7ABF0F1AEA18EC87BF = {isa = PBXFileReference; lastKnownFileType = text.json; path = "Fixtures/import_text.json"; sourceTree = "<group>";};
-1221E4FC65B6F522670AF87C = {isa = PBXFileReference; lastKnownFileType = text.json; path = "Fixtures/job_extracted.json"; sourceTree = "<group>";};
-2A54120F9D368031D60AED60 = {isa = PBXFileReference; lastKnownFileType = text.json; path = "Fixtures/publication_selected.json"; sourceTree = "<group>";};
-EEC7B799081358E122CBB6C1 = {isa = PBXFileReference; lastKnownFileType = text.json; path = "Fixtures/render_set.json"; sourceTree = "<group>";};
-9B3F41131678F463083612A2 = {isa = PBXFileReference; lastKnownFileType = text.json; path = "Fixtures/revision.json"; sourceTree = "<group>";};
-EBA34A9137BD9AA79CBBBF92 = {isa = PBXFileReference; lastKnownFileType = text.json; path = "Fixtures/status.json"; sourceTree = "<group>";};
-B47E1912DF73A535128FAB3D = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "ShareExtension/Info.plist"; sourceTree = "<group>";};
-CAD35054A8361FDDDDA0D4AB = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ShareExtension/ShareViewController.swift"; sourceTree = "<group>";};
-7AF37620B6A8E84A39B29A50 = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "ShareExtension/eRecipe.entitlements"; sourceTree = "<group>";};
-8CDF2DA57B1284221555D8F7 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/APIClient.swift"; sourceTree = "<group>";};
-23F795EA3B860B1EBB3500D7 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/AutomaticDelivery.swift"; sourceTree = "<group>";};
-5E6BC45981DFB05D2ADE7B49 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/ClientEnvironment.swift"; sourceTree = "<group>";};
-2862EC28DC89F99D83442317 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/DemoProtocol.swift"; sourceTree = "<group>";};
-A97AC3E1EFFD26F1BCD4C56C = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/EnrollmentLink.swift"; sourceTree = "<group>";};
-9A14B38756FFE7CB8EE58FB7 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/ImagePreparation.swift"; sourceTree = "<group>";};
-7E6D5FC12E0DF7028A45ADD3 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/ImportView.swift"; sourceTree = "<group>";};
-33F6EF03795119E2B0E0C02A = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Models.swift"; sourceTree = "<group>";};
-4440F7E37D28DFB6B72D759C = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/RecipeFlowView.swift"; sourceTree = "<group>";};
-56E2AE63A8BF755614A16C8F = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/SharedInputLoader.swift"; sourceTree = "<group>";};
-B5DB56CDFDD28EA97215349A = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/SharedStore.swift"; sourceTree = "<group>";};
-327E2593F1CE7BA5B2C7ADE8 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/UploadManager.swift"; sourceTree = "<group>";};
-F3DC83C45B024364F6E4974A = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Workflow.swift"; sourceTree = "<group>";};
-330145E459533410D8E30002 = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "eRecipe.xcodeproj/xcuserdata/kidder.xcuserdatad/xcschemes/xcschememanagement.plist"; sourceTree = "<group>";};
-CD53A155CAF4EE61C4497A14 = {isa = PBXFileReference; explicitFileType = wrapper.application; path = eRecipe.app; sourceTree = BUILT_PRODUCTS_DIR;};
-C9789B6E9018E2E8D6CCA293 = {isa = PBXFileReference; explicitFileType = wrapper.app-extension; path = ShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR;};
-B606010AF390F247F36B2EA6 = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; path = eRecipeUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR;};
-0A3E27B8CA818264D75C8D81 = {isa = PBXGroup; name = Products; children = (CD53A155CAF4EE61C4497A14, C9789B6E9018E2E8D6CCA293, B606010AF390F247F36B2EA6,); sourceTree = "<group>";};
-F16CEC979B22F7F648FE637F = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UITests/FlowTests.swift; sourceTree = "<group>";};
-0D6E4079E36703EBD37C0072 = {isa = PBXGroup; children = (E4A116DE6EA1EF90607B5FBD, E72685212AF966A85FF3F9E9, 205D88E14B9C11A5F497930A, E9C30E955960894C73571124, 83706B06A55724768DD65385, 67E24BBFAD93DAA5154614DB, EC41C485640E5D21745BEDB1, 1F167BD278F26BC1E727A82A, EA187B7ABF0F1AEA18EC87BF, 1221E4FC65B6F522670AF87C, 2A54120F9D368031D60AED60, EEC7B799081358E122CBB6C1, 9B3F41131678F463083612A2, EBA34A9137BD9AA79CBBBF92, B47E1912DF73A535128FAB3D, CAD35054A8361FDDDDA0D4AB, 7AF37620B6A8E84A39B29A50, 8CDF2DA57B1284221555D8F7, 23F795EA3B860B1EBB3500D7, 5E6BC45981DFB05D2ADE7B49, 2862EC28DC89F99D83442317, A97AC3E1EFFD26F1BCD4C56C, 9A14B38756FFE7CB8EE58FB7, 7E6D5FC12E0DF7028A45ADD3, 33F6EF03795119E2B0E0C02A, 4440F7E37D28DFB6B72D759C, 56E2AE63A8BF755614A16C8F, B5DB56CDFDD28EA97215349A, 327E2593F1CE7BA5B2C7ADE8, F3DC83C45B024364F6E4974A, 330145E459533410D8E30002, F16CEC979B22F7F648FE637F, 0A3E27B8CA818264D75C8D81,); sourceTree = "<group>";};
-73EBF6644258C120893E685D = {isa = XCBuildConfiguration; baseConfigurationReference = 67E24BBFAD93DAA5154614DB; buildSettings = {SWIFT_VERSION = "5.0";IPHONEOS_DEPLOYMENT_TARGET = "17.0";SDKROOT = "iphoneos";CLANG_ENABLE_MODULES = "YES";ENABLE_USER_SCRIPT_SANDBOXING = "YES";TARGETED_DEVICE_FAMILY = "1,2";CODE_SIGN_STYLE = "Automatic";SWIFT_OPTIMIZATION_LEVEL = "-Onone";SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG";DEBUG_INFORMATION_FORMAT = "dwarf";}; name = Debug;};
-0B0C687DF8B6B8DC790B519C = {isa = XCBuildConfiguration; baseConfigurationReference = 67E24BBFAD93DAA5154614DB; buildSettings = {SWIFT_VERSION = "5.0";IPHONEOS_DEPLOYMENT_TARGET = "17.0";SDKROOT = "iphoneos";CLANG_ENABLE_MODULES = "YES";ENABLE_USER_SCRIPT_SANDBOXING = "YES";TARGETED_DEVICE_FAMILY = "1,2";CODE_SIGN_STYLE = "Automatic";SWIFT_OPTIMIZATION_LEVEL = "-O";SWIFT_ACTIVE_COMPILATION_CONDITIONS = "";DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";}; name = Release;};
-76F8DEC3DFE0BDB465198890 = {isa = XCConfigurationList; buildConfigurations = (73EBF6644258C120893E685D, 0B0C687DF8B6B8DC790B519C,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release;};
-6C0100BF7336449A6AEE14B2 = {isa = PBXBuildFile; fileRef = E4A116DE6EA1EF90607B5FBD;};
-1D87A8D7AC866BAA768ECDE3 = {isa = PBXBuildFile; fileRef = 205D88E14B9C11A5F497930A;};
-B6FB9BB48225C169C727A2A2 = {isa = PBXBuildFile; fileRef = 83706B06A55724768DD65385;};
-2FC86C8214EDEE6FD07560FD = {isa = PBXBuildFile; fileRef = 8CDF2DA57B1284221555D8F7;};
-CAE2BCE2E3889B8F73F6B325 = {isa = PBXBuildFile; fileRef = 23F795EA3B860B1EBB3500D7;};
-16F43ACF83D94830D645355A = {isa = PBXBuildFile; fileRef = 5E6BC45981DFB05D2ADE7B49;};
-88B86B87524006F00DF3DF5C = {isa = PBXBuildFile; fileRef = 2862EC28DC89F99D83442317;};
-AB552DA484F12D004C16D1EA = {isa = PBXBuildFile; fileRef = A97AC3E1EFFD26F1BCD4C56C;};
-02AD68FFDE33897732532C14 = {isa = PBXBuildFile; fileRef = 9A14B38756FFE7CB8EE58FB7;};
-FF071ED01E3EC47CA496E1EC = {isa = PBXBuildFile; fileRef = 7E6D5FC12E0DF7028A45ADD3;};
-1256856DC5B0566C09D88AA8 = {isa = PBXBuildFile; fileRef = 33F6EF03795119E2B0E0C02A;};
-DA5F08877F9DDF2EAA00DF17 = {isa = PBXBuildFile; fileRef = 4440F7E37D28DFB6B72D759C;};
-02F350D39480620B24A0553A = {isa = PBXBuildFile; fileRef = 56E2AE63A8BF755614A16C8F;};
-2002AF8CEE191115580C5F2D = {isa = PBXBuildFile; fileRef = B5DB56CDFDD28EA97215349A;};
-DBCE00AF8CA49BDFAA527B12 = {isa = PBXBuildFile; fileRef = 327E2593F1CE7BA5B2C7ADE8;};
-FE8874FD4E38DC05B6660130 = {isa = PBXBuildFile; fileRef = F3DC83C45B024364F6E4974A;};
-43AB30B21C85FF75B27B7A78 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (6C0100BF7336449A6AEE14B2, 1D87A8D7AC866BAA768ECDE3, B6FB9BB48225C169C727A2A2, 2FC86C8214EDEE6FD07560FD, CAE2BCE2E3889B8F73F6B325, 16F43ACF83D94830D645355A, 88B86B87524006F00DF3DF5C, AB552DA484F12D004C16D1EA, 02AD68FFDE33897732532C14, FF071ED01E3EC47CA496E1EC, 1256856DC5B0566C09D88AA8, DA5F08877F9DDF2EAA00DF17, 02F350D39480620B24A0553A, 2002AF8CEE191115580C5F2D, DBCE00AF8CA49BDFAA527B12, FE8874FD4E38DC05B6660130,); runOnlyForDeploymentPostprocessing = 0;};
-8EC97CD718F92828E104A15C = {isa = PBXBuildFile; fileRef = EC41C485640E5D21745BEDB1;};
-FBF347040AE2460A60985B6F = {isa = PBXBuildFile; fileRef = 1F167BD278F26BC1E727A82A;};
-B2F7DD62B9056774C03D4808 = {isa = PBXBuildFile; fileRef = EA187B7ABF0F1AEA18EC87BF;};
-D2C1BF5CDBFB618A20A6E794 = {isa = PBXBuildFile; fileRef = 1221E4FC65B6F522670AF87C;};
-096E53602E69E1FEA7B08CDD = {isa = PBXBuildFile; fileRef = 2A54120F9D368031D60AED60;};
-8BEA1AC5D0C1D2DEA6922799 = {isa = PBXBuildFile; fileRef = EEC7B799081358E122CBB6C1;};
-A0DE2C74D0A99A307B61EF2D = {isa = PBXBuildFile; fileRef = 9B3F41131678F463083612A2;};
-1E88653C6836B40989A49522 = {isa = PBXBuildFile; fileRef = EBA34A9137BD9AA79CBBBF92;};
-39F2243E53EFDDBB7F8FAC25 = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (8EC97CD718F92828E104A15C, FBF347040AE2460A60985B6F, B2F7DD62B9056774C03D4808, D2C1BF5CDBFB618A20A6E794, 096E53602E69E1FEA7B08CDD, 8BEA1AC5D0C1D2DEA6922799, A0DE2C74D0A99A307B61EF2D, 1E88653C6836B40989A49522,); runOnlyForDeploymentPostprocessing = 0;};
-C199F8AA17E0370337210C05 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0;};
-91FFAEFF1D73258F53A85D87 = {isa = PBXContainerItemProxy; containerPortal = 244210E48437B6556980A702; proxyType = 1; remoteGlobalIDString = 8BD872E195471720E3E1B332; remoteInfo = ShareExtension;};
-ABE2EAC56F3B27D5A0F55922 = {isa = PBXTargetDependency; target = 8BD872E195471720E3E1B332; targetProxy = 91FFAEFF1D73258F53A85D87;};
-FAE608D04BA82A38D1FB0D81 = {isa = PBXBuildFile; fileRef = C9789B6E9018E2E8D6CCA293; settings = {ATTRIBUTES = (RemoveHeadersOnCopy,);};};
-DD615B768CF8ACFE2ED53E52 = {isa = PBXCopyFilesBuildPhase; buildActionMask = 2147483647; dstPath = ""; dstSubfolderSpec = 13; files = (FAE608D04BA82A38D1FB0D81,); name = "Embed App Extensions"; runOnlyForDeploymentPostprocessing = 0;};
-5E05CBDEE522F6B9A885EF52 = {isa = XCBuildConfiguration; baseConfigurationReference = 67E24BBFAD93DAA5154614DB; buildSettings = {PRODUCT_NAME = "eRecipe";PRODUCT_BUNDLE_IDENTIFIER = "$(ERECIPE_BUNDLE_PREFIX)";OTHER_LDFLAGS = "$(inherited) -lsqlite3";GENERATE_INFOPLIST_FILE = "NO";SWIFT_EMIT_LOC_STRINGS = "YES";INFOPLIST_FILE = "App/Info.plist";CODE_SIGN_ENTITLEMENTS = "App/eRecipe.entitlements";SWIFT_OPTIMIZATION_LEVEL = "-Onone";SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG";DEBUG_INFORMATION_FORMAT = "dwarf";}; name = Debug;};
-DD0E6D586A6770C89D23020F = {isa = XCBuildConfiguration; baseConfigurationReference = 67E24BBFAD93DAA5154614DB; buildSettings = {PRODUCT_NAME = "eRecipe";PRODUCT_BUNDLE_IDENTIFIER = "$(ERECIPE_BUNDLE_PREFIX)";OTHER_LDFLAGS = "$(inherited) -lsqlite3";GENERATE_INFOPLIST_FILE = "NO";SWIFT_EMIT_LOC_STRINGS = "YES";INFOPLIST_FILE = "App/Info.plist";CODE_SIGN_ENTITLEMENTS = "App/eRecipe.entitlements";SWIFT_OPTIMIZATION_LEVEL = "-O";SWIFT_ACTIVE_COMPILATION_CONDITIONS = "";DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";}; name = Release;};
-0CB8B02BE9E260F2234108D0 = {isa = XCConfigurationList; buildConfigurations = (5E05CBDEE522F6B9A885EF52, DD0E6D586A6770C89D23020F,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release;};
-22374971AC193FAA0182AC27 = {isa = PBXNativeTarget; buildConfigurationList = 0CB8B02BE9E260F2234108D0; buildPhases = (43AB30B21C85FF75B27B7A78, 39F2243E53EFDDBB7F8FAC25, C199F8AA17E0370337210C05, DD615B768CF8ACFE2ED53E52,); buildRules = (); dependencies = (ABE2EAC56F3B27D5A0F55922,); name = eRecipe; productName = eRecipe; productReference = CD53A155CAF4EE61C4497A14; productType = "com.apple.product-type.application";};
-C7FAF6DBC1B8A8C34CC61BC7 = {isa = PBXBuildFile; fileRef = CAD35054A8361FDDDDA0D4AB;};
-D20EA55B26B13C02E85C2422 = {isa = PBXBuildFile; fileRef = 8CDF2DA57B1284221555D8F7;};
-7E37766FF3FD9CD649C46463 = {isa = PBXBuildFile; fileRef = 23F795EA3B860B1EBB3500D7;};
-D11F6444D72EEBACF931BA1E = {isa = PBXBuildFile; fileRef = 5E6BC45981DFB05D2ADE7B49;};
-6F2A57233580D19EBB936EAC = {isa = PBXBuildFile; fileRef = 2862EC28DC89F99D83442317;};
-D31CE96B65F84B67122518B7 = {isa = PBXBuildFile; fileRef = A97AC3E1EFFD26F1BCD4C56C;};
-3AE93A6903A8F9D1A6706742 = {isa = PBXBuildFile; fileRef = 9A14B38756FFE7CB8EE58FB7;};
-F861749BF90E7403154DCFFE = {isa = PBXBuildFile; fileRef = 7E6D5FC12E0DF7028A45ADD3;};
-FBE3BEB45573AC790D141DAF = {isa = PBXBuildFile; fileRef = 33F6EF03795119E2B0E0C02A;};
-99CB777ACEEC4D4F97BD73EE = {isa = PBXBuildFile; fileRef = 4440F7E37D28DFB6B72D759C;};
-A3D6B1155681B9BD083C995B = {isa = PBXBuildFile; fileRef = 56E2AE63A8BF755614A16C8F;};
-BFF57643F9494FD76A81D5E1 = {isa = PBXBuildFile; fileRef = B5DB56CDFDD28EA97215349A;};
-2D7F4BDFB0AD356E9C3645C5 = {isa = PBXBuildFile; fileRef = 327E2593F1CE7BA5B2C7ADE8;};
-10AF807A3870AC720E3B8BF9 = {isa = PBXBuildFile; fileRef = F3DC83C45B024364F6E4974A;};
-9B5A16B1AAF1548774EFB2B3 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (C7FAF6DBC1B8A8C34CC61BC7, D20EA55B26B13C02E85C2422, 7E37766FF3FD9CD649C46463, D11F6444D72EEBACF931BA1E, 6F2A57233580D19EBB936EAC, D31CE96B65F84B67122518B7, 3AE93A6903A8F9D1A6706742, F861749BF90E7403154DCFFE, FBE3BEB45573AC790D141DAF, 99CB777ACEEC4D4F97BD73EE, A3D6B1155681B9BD083C995B, BFF57643F9494FD76A81D5E1, 2D7F4BDFB0AD356E9C3645C5, 10AF807A3870AC720E3B8BF9,); runOnlyForDeploymentPostprocessing = 0;};
-0DA6082E72D1D1A2FD5B3E7F = {isa = PBXBuildFile; fileRef = EC41C485640E5D21745BEDB1;};
-C16BD02D56E5F25520ED6CB5 = {isa = PBXBuildFile; fileRef = 1F167BD278F26BC1E727A82A;};
-DAAF64ECCDF5C7DC5B9A4AB3 = {isa = PBXBuildFile; fileRef = EA187B7ABF0F1AEA18EC87BF;};
-0AE86117975E6E22E244BC0E = {isa = PBXBuildFile; fileRef = 1221E4FC65B6F522670AF87C;};
-4D53635C767AD8AA7C95ACA3 = {isa = PBXBuildFile; fileRef = 2A54120F9D368031D60AED60;};
-4CB3972EBB3E1FB0AA14C745 = {isa = PBXBuildFile; fileRef = EEC7B799081358E122CBB6C1;};
-56B8A2EEFD5DE2E1B3DD03FE = {isa = PBXBuildFile; fileRef = 9B3F41131678F463083612A2;};
-167BA35083C064F604F75B27 = {isa = PBXBuildFile; fileRef = EBA34A9137BD9AA79CBBBF92;};
-3B8D7C74D005B4176256D5DD = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (0DA6082E72D1D1A2FD5B3E7F, C16BD02D56E5F25520ED6CB5, DAAF64ECCDF5C7DC5B9A4AB3, 0AE86117975E6E22E244BC0E, 4D53635C767AD8AA7C95ACA3, 4CB3972EBB3E1FB0AA14C745, 56B8A2EEFD5DE2E1B3DD03FE, 167BA35083C064F604F75B27,); runOnlyForDeploymentPostprocessing = 0;};
-20810053FD2F028BCF1CF257 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0;};
-E4AB0FBB093FC35A68DC7A56 = {isa = XCBuildConfiguration; baseConfigurationReference = 67E24BBFAD93DAA5154614DB; buildSettings = {PRODUCT_NAME = "ShareExtension";PRODUCT_BUNDLE_IDENTIFIER = "$(ERECIPE_BUNDLE_PREFIX).share";OTHER_LDFLAGS = "$(inherited) -lsqlite3";GENERATE_INFOPLIST_FILE = "NO";SWIFT_EMIT_LOC_STRINGS = "YES";INFOPLIST_FILE = "ShareExtension/Info.plist";CODE_SIGN_ENTITLEMENTS = "ShareExtension/eRecipe.entitlements";APPLICATION_EXTENSION_API_ONLY = "YES";SKIP_INSTALL = "YES";SWIFT_OPTIMIZATION_LEVEL = "-Onone";SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG";DEBUG_INFORMATION_FORMAT = "dwarf";}; name = Debug;};
-5AD9F42E1D60FFDEEA38A51D = {isa = XCBuildConfiguration; baseConfigurationReference = 67E24BBFAD93DAA5154614DB; buildSettings = {PRODUCT_NAME = "ShareExtension";PRODUCT_BUNDLE_IDENTIFIER = "$(ERECIPE_BUNDLE_PREFIX).share";OTHER_LDFLAGS = "$(inherited) -lsqlite3";GENERATE_INFOPLIST_FILE = "NO";SWIFT_EMIT_LOC_STRINGS = "YES";INFOPLIST_FILE = "ShareExtension/Info.plist";CODE_SIGN_ENTITLEMENTS = "ShareExtension/eRecipe.entitlements";APPLICATION_EXTENSION_API_ONLY = "YES";SKIP_INSTALL = "YES";SWIFT_OPTIMIZATION_LEVEL = "-O";SWIFT_ACTIVE_COMPILATION_CONDITIONS = "";DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";}; name = Release;};
-A2784B9C1D3FF457BFCA8860 = {isa = XCConfigurationList; buildConfigurations = (E4AB0FBB093FC35A68DC7A56, 5AD9F42E1D60FFDEEA38A51D,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release;};
-8BD872E195471720E3E1B332 = {isa = PBXNativeTarget; buildConfigurationList = A2784B9C1D3FF457BFCA8860; buildPhases = (9B5A16B1AAF1548774EFB2B3, 3B8D7C74D005B4176256D5DD, 20810053FD2F028BCF1CF257,); buildRules = (); dependencies = (); name = ShareExtension; productName = ShareExtension; productReference = C9789B6E9018E2E8D6CCA293; productType = "com.apple.product-type.app-extension";};
-1A2282B90A2DBCAF307E423D = {isa = PBXBuildFile; fileRef = F16CEC979B22F7F648FE637F;};
-B8ECBD1D3966879528AC98C2 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (1A2282B90A2DBCAF307E423D,); runOnlyForDeploymentPostprocessing = 0;};
-EBEC02730AAC8772E39D9005 = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0;};
-3EE75734586CE0A1FF2FD95B = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0;};
-91AEAD1C14697AECCEFEA4F3 = {isa = PBXContainerItemProxy; containerPortal = 244210E48437B6556980A702; proxyType = 1; remoteGlobalIDString = 22374971AC193FAA0182AC27; remoteInfo = eRecipe;};
-E615486CDA23F2A08AB4CBF7 = {isa = PBXTargetDependency; target = 22374971AC193FAA0182AC27; targetProxy = 91AEAD1C14697AECCEFEA4F3;};
-D5CEDC741F4953DCEE5D4729 = {isa = XCBuildConfiguration; baseConfigurationReference = 67E24BBFAD93DAA5154614DB; buildSettings = {PRODUCT_NAME = "eRecipeUITests";PRODUCT_BUNDLE_IDENTIFIER = "$(ERECIPE_BUNDLE_PREFIX).uitests";OTHER_LDFLAGS = "$(inherited) -lsqlite3";GENERATE_INFOPLIST_FILE = "YES";SWIFT_EMIT_LOC_STRINGS = "YES";TEST_TARGET_NAME = "eRecipe";SWIFT_OPTIMIZATION_LEVEL = "-Onone";SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG";DEBUG_INFORMATION_FORMAT = "dwarf";}; name = Debug;};
-F3A7C5E63814F2CB594AF0DA = {isa = XCBuildConfiguration; baseConfigurationReference = 67E24BBFAD93DAA5154614DB; buildSettings = {PRODUCT_NAME = "eRecipeUITests";PRODUCT_BUNDLE_IDENTIFIER = "$(ERECIPE_BUNDLE_PREFIX).uitests";OTHER_LDFLAGS = "$(inherited) -lsqlite3";GENERATE_INFOPLIST_FILE = "YES";SWIFT_EMIT_LOC_STRINGS = "YES";TEST_TARGET_NAME = "eRecipe";SWIFT_OPTIMIZATION_LEVEL = "-O";SWIFT_ACTIVE_COMPILATION_CONDITIONS = "";DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";}; name = Release;};
-0C6764198E4BCB2371400207 = {isa = XCConfigurationList; buildConfigurations = (D5CEDC741F4953DCEE5D4729, F3A7C5E63814F2CB594AF0DA,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release;};
-EFE911B1F64BD8C0979BB363 = {isa = PBXNativeTarget; buildConfigurationList = 0C6764198E4BCB2371400207; buildPhases = (B8ECBD1D3966879528AC98C2, EBEC02730AAC8772E39D9005, 3EE75734586CE0A1FF2FD95B,); buildRules = (); dependencies = (E615486CDA23F2A08AB4CBF7,); name = eRecipeUITests; productName = eRecipeUITests; productReference = B606010AF390F247F36B2EA6; productType = "com.apple.product-type.bundle.ui-testing";};
-244210E48437B6556980A702 = {isa = PBXProject; attributes = {LastUpgradeCheck = 2700;}; buildConfigurationList = 76F8DEC3DFE0BDB465198890; compatibilityVersion = "Xcode 14.0"; developmentRegion = en; hasScannedForEncodings = 0; knownRegions = (en, Base,); mainGroup = 0D6E4079E36703EBD37C0072; productRefGroup = 0A3E27B8CA818264D75C8D81; projectDirPath = ""; projectRoot = ""; targets = (22374971AC193FAA0182AC27, 8BD872E195471720E3E1B332, EFE911B1F64BD8C0979BB363,);};
-}; rootObject = 244210E48437B6556980A702;}
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		02AD68FFDE33897732532C14 /* Shared/ImagePreparation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A14B38756FFE7CB8EE58FB7 /* Shared/ImagePreparation.swift */; };
+		02F350D39480620B24A0553A /* Shared/SharedInputLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56E2AE63A8BF755614A16C8F /* Shared/SharedInputLoader.swift */; };
+		096E53602E69E1FEA7B08CDD /* Fixtures/publication_selected.json in Resources */ = {isa = PBXBuildFile; fileRef = 2A54120F9D368031D60AED60 /* Fixtures/publication_selected.json */; };
+		0AE86117975E6E22E244BC0E /* Fixtures/job_extracted.json in Resources */ = {isa = PBXBuildFile; fileRef = 1221E4FC65B6F522670AF87C /* Fixtures/job_extracted.json */; };
+		0DA6082E72D1D1A2FD5B3E7F /* Fixtures/demo-preview.png in Resources */ = {isa = PBXBuildFile; fileRef = EC41C485640E5D21745BEDB1 /* Fixtures/demo-preview.png */; };
+		10AF807A3870AC720E3B8BF9 /* Shared/Workflow.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3DC83C45B024364F6E4974A /* Shared/Workflow.swift */; };
+		1256856DC5B0566C09D88AA8 /* Shared/Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33F6EF03795119E2B0E0C02A /* Shared/Models.swift */; };
+		167BA35083C064F604F75B27 /* Fixtures/status.json in Resources */ = {isa = PBXBuildFile; fileRef = EBA34A9137BD9AA79CBBBF92 /* Fixtures/status.json */; };
+		16F43ACF83D94830D645355A /* Shared/ClientEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E6BC45981DFB05D2ADE7B49 /* Shared/ClientEnvironment.swift */; };
+		1A2282B90A2DBCAF307E423D /* UITests/FlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F16CEC979B22F7F648FE637F /* UITests/FlowTests.swift */; };
+		1D87A8D7AC866BAA768ECDE3 /* App/RecipePhotoPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 205D88E14B9C11A5F497930A /* App/RecipePhotoPicker.swift */; };
+		1E88653C6836B40989A49522 /* Fixtures/status.json in Resources */ = {isa = PBXBuildFile; fileRef = EBA34A9137BD9AA79CBBBF92 /* Fixtures/status.json */; };
+		2002AF8CEE191115580C5F2D /* Shared/SharedStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5DB56CDFDD28EA97215349A /* Shared/SharedStore.swift */; };
+		2D7F4BDFB0AD356E9C3645C5 /* Shared/UploadManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 327E2593F1CE7BA5B2C7ADE8 /* Shared/UploadManager.swift */; };
+		2FC86C8214EDEE6FD07560FD /* Shared/APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CDF2DA57B1284221555D8F7 /* Shared/APIClient.swift */; };
+		3AE93A6903A8F9D1A6706742 /* Shared/ImagePreparation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A14B38756FFE7CB8EE58FB7 /* Shared/ImagePreparation.swift */; };
+		4CB3972EBB3E1FB0AA14C745 /* Fixtures/render_set.json in Resources */ = {isa = PBXBuildFile; fileRef = EEC7B799081358E122CBB6C1 /* Fixtures/render_set.json */; };
+		4D53635C767AD8AA7C95ACA3 /* Fixtures/publication_selected.json in Resources */ = {isa = PBXBuildFile; fileRef = 2A54120F9D368031D60AED60 /* Fixtures/publication_selected.json */; };
+		56B8A2EEFD5DE2E1B3DD03FE /* Fixtures/revision.json in Resources */ = {isa = PBXBuildFile; fileRef = 9B3F41131678F463083612A2 /* Fixtures/revision.json */; };
+		6C0100BF7336449A6AEE14B2 /* App/HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4A116DE6EA1EF90607B5FBD /* App/HomeView.swift */; };
+		6F2A57233580D19EBB936EAC /* Shared/DemoProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2862EC28DC89F99D83442317 /* Shared/DemoProtocol.swift */; };
+		7E37766FF3FD9CD649C46463 /* Shared/AutomaticDelivery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23F795EA3B860B1EBB3500D7 /* Shared/AutomaticDelivery.swift */; };
+		88B86B87524006F00DF3DF5C /* Shared/DemoProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2862EC28DC89F99D83442317 /* Shared/DemoProtocol.swift */; };
+		8BEA1AC5D0C1D2DEA6922799 /* Fixtures/render_set.json in Resources */ = {isa = PBXBuildFile; fileRef = EEC7B799081358E122CBB6C1 /* Fixtures/render_set.json */; };
+		8EC97CD718F92828E104A15C /* Fixtures/demo-preview.png in Resources */ = {isa = PBXBuildFile; fileRef = EC41C485640E5D21745BEDB1 /* Fixtures/demo-preview.png */; };
+		99CB777ACEEC4D4F97BD73EE /* Shared/RecipeFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4440F7E37D28DFB6B72D759C /* Shared/RecipeFlowView.swift */; };
+		A0DE2C74D0A99A307B61EF2D /* Fixtures/revision.json in Resources */ = {isa = PBXBuildFile; fileRef = 9B3F41131678F463083612A2 /* Fixtures/revision.json */; };
+		A3D6B1155681B9BD083C995B /* Shared/SharedInputLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56E2AE63A8BF755614A16C8F /* Shared/SharedInputLoader.swift */; };
+		AB552DA484F12D004C16D1EA /* Shared/EnrollmentLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = A97AC3E1EFFD26F1BCD4C56C /* Shared/EnrollmentLink.swift */; };
+		B2F7DD62B9056774C03D4808 /* Fixtures/import_text.json in Resources */ = {isa = PBXBuildFile; fileRef = EA187B7ABF0F1AEA18EC87BF /* Fixtures/import_text.json */; };
+		B6FB9BB48225C169C727A2A2 /* App/eRecipeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83706B06A55724768DD65385 /* App/eRecipeApp.swift */; };
+		BFF57643F9494FD76A81D5E1 /* Shared/SharedStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5DB56CDFDD28EA97215349A /* Shared/SharedStore.swift */; };
+		C16BD02D56E5F25520ED6CB5 /* Fixtures/device_selected.json in Resources */ = {isa = PBXBuildFile; fileRef = 1F167BD278F26BC1E727A82A /* Fixtures/device_selected.json */; };
+		C7FAF6DBC1B8A8C34CC61BC7 /* ShareExtension/ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAD35054A8361FDDDDA0D4AB /* ShareExtension/ShareViewController.swift */; };
+		CAE2BCE2E3889B8F73F6B325 /* Shared/AutomaticDelivery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23F795EA3B860B1EBB3500D7 /* Shared/AutomaticDelivery.swift */; };
+		D11F6444D72EEBACF931BA1E /* Shared/ClientEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E6BC45981DFB05D2ADE7B49 /* Shared/ClientEnvironment.swift */; };
+		D20EA55B26B13C02E85C2422 /* Shared/APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CDF2DA57B1284221555D8F7 /* Shared/APIClient.swift */; };
+		D2C1BF5CDBFB618A20A6E794 /* Fixtures/job_extracted.json in Resources */ = {isa = PBXBuildFile; fileRef = 1221E4FC65B6F522670AF87C /* Fixtures/job_extracted.json */; };
+		D31CE96B65F84B67122518B7 /* Shared/EnrollmentLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = A97AC3E1EFFD26F1BCD4C56C /* Shared/EnrollmentLink.swift */; };
+		DA5F08877F9DDF2EAA00DF17 /* Shared/RecipeFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4440F7E37D28DFB6B72D759C /* Shared/RecipeFlowView.swift */; };
+		DAAF64ECCDF5C7DC5B9A4AB3 /* Fixtures/import_text.json in Resources */ = {isa = PBXBuildFile; fileRef = EA187B7ABF0F1AEA18EC87BF /* Fixtures/import_text.json */; };
+		DBCE00AF8CA49BDFAA527B12 /* Shared/UploadManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 327E2593F1CE7BA5B2C7ADE8 /* Shared/UploadManager.swift */; };
+		F861749BF90E7403154DCFFE /* Shared/ImportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E6D5FC12E0DF7028A45ADD3 /* Shared/ImportView.swift */; };
+		FAE608D04BA82A38D1FB0D81 /* ShareExtension.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = C9789B6E9018E2E8D6CCA293 /* ShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		FBE3BEB45573AC790D141DAF /* Shared/Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33F6EF03795119E2B0E0C02A /* Shared/Models.swift */; };
+		FBF347040AE2460A60985B6F /* Fixtures/device_selected.json in Resources */ = {isa = PBXBuildFile; fileRef = 1F167BD278F26BC1E727A82A /* Fixtures/device_selected.json */; };
+		FE8874FD4E38DC05B6660130 /* Shared/Workflow.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3DC83C45B024364F6E4974A /* Shared/Workflow.swift */; };
+		FF071ED01E3EC47CA496E1EC /* Shared/ImportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E6D5FC12E0DF7028A45ADD3 /* Shared/ImportView.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		91AEAD1C14697AECCEFEA4F3 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 244210E48437B6556980A702 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 22374971AC193FAA0182AC27;
+			remoteInfo = eRecipe;
+		};
+		91FFAEFF1D73258F53A85D87 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 244210E48437B6556980A702 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 8BD872E195471720E3E1B332;
+			remoteInfo = ShareExtension;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		DD615B768CF8ACFE2ED53E52 /* Embed App Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				FAE608D04BA82A38D1FB0D81 /* ShareExtension.appex in Embed App Extensions */,
+			);
+			name = "Embed App Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		1221E4FC65B6F522670AF87C /* Fixtures/job_extracted.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = Fixtures/job_extracted.json; sourceTree = "<group>"; };
+		1F167BD278F26BC1E727A82A /* Fixtures/device_selected.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = Fixtures/device_selected.json; sourceTree = "<group>"; };
+		205D88E14B9C11A5F497930A /* App/RecipePhotoPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App/RecipePhotoPicker.swift; sourceTree = "<group>"; };
+		23F795EA3B860B1EBB3500D7 /* Shared/AutomaticDelivery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shared/AutomaticDelivery.swift; sourceTree = "<group>"; };
+		2862EC28DC89F99D83442317 /* Shared/DemoProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shared/DemoProtocol.swift; sourceTree = "<group>"; };
+		2A54120F9D368031D60AED60 /* Fixtures/publication_selected.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = Fixtures/publication_selected.json; sourceTree = "<group>"; };
+		327E2593F1CE7BA5B2C7ADE8 /* Shared/UploadManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shared/UploadManager.swift; sourceTree = "<group>"; };
+		330145E459533410D8E30002 /* eRecipe.xcodeproj/xcuserdata/kidder.xcuserdatad/xcschemes/xcschememanagement.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = eRecipe.xcodeproj/xcuserdata/kidder.xcuserdatad/xcschemes/xcschememanagement.plist; sourceTree = "<group>"; };
+		33F6EF03795119E2B0E0C02A /* Shared/Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shared/Models.swift; sourceTree = "<group>"; };
+		4440F7E37D28DFB6B72D759C /* Shared/RecipeFlowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shared/RecipeFlowView.swift; sourceTree = "<group>"; };
+		56E2AE63A8BF755614A16C8F /* Shared/SharedInputLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shared/SharedInputLoader.swift; sourceTree = "<group>"; };
+		5E6BC45981DFB05D2ADE7B49 /* Shared/ClientEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shared/ClientEnvironment.swift; sourceTree = "<group>"; };
+		67E24BBFAD93DAA5154614DB /* Config/Signing.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config/Signing.xcconfig; sourceTree = "<group>"; };
+		7AF37620B6A8E84A39B29A50 /* ShareExtension/eRecipe.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ShareExtension/eRecipe.entitlements; sourceTree = "<group>"; };
+		7E6D5FC12E0DF7028A45ADD3 /* Shared/ImportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shared/ImportView.swift; sourceTree = "<group>"; };
+		83706B06A55724768DD65385 /* App/eRecipeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App/eRecipeApp.swift; sourceTree = "<group>"; };
+		8CDF2DA57B1284221555D8F7 /* Shared/APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shared/APIClient.swift; sourceTree = "<group>"; };
+		9A14B38756FFE7CB8EE58FB7 /* Shared/ImagePreparation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shared/ImagePreparation.swift; sourceTree = "<group>"; };
+		9B3F41131678F463083612A2 /* Fixtures/revision.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = Fixtures/revision.json; sourceTree = "<group>"; };
+		A97AC3E1EFFD26F1BCD4C56C /* Shared/EnrollmentLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shared/EnrollmentLink.swift; sourceTree = "<group>"; };
+		B47E1912DF73A535128FAB3D /* ShareExtension/Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = ShareExtension/Info.plist; sourceTree = "<group>"; };
+		B5DB56CDFDD28EA97215349A /* Shared/SharedStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shared/SharedStore.swift; sourceTree = "<group>"; };
+		B606010AF390F247F36B2EA6 /* eRecipeUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; path = eRecipeUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		C9789B6E9018E2E8D6CCA293 /* ShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; path = ShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		CAD35054A8361FDDDDA0D4AB /* ShareExtension/ShareViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareExtension/ShareViewController.swift; sourceTree = "<group>"; };
+		CD53A155CAF4EE61C4497A14 /* eRecipe.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; path = eRecipe.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		E4A116DE6EA1EF90607B5FBD /* App/HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App/HomeView.swift; sourceTree = "<group>"; };
+		E72685212AF966A85FF3F9E9 /* App/Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = App/Info.plist; sourceTree = "<group>"; };
+		E9C30E955960894C73571124 /* App/eRecipe.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = App/eRecipe.entitlements; sourceTree = "<group>"; };
+		EA187B7ABF0F1AEA18EC87BF /* Fixtures/import_text.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = Fixtures/import_text.json; sourceTree = "<group>"; };
+		EBA34A9137BD9AA79CBBBF92 /* Fixtures/status.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = Fixtures/status.json; sourceTree = "<group>"; };
+		EC41C485640E5D21745BEDB1 /* Fixtures/demo-preview.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "Fixtures/demo-preview.png"; sourceTree = "<group>"; };
+		EEC7B799081358E122CBB6C1 /* Fixtures/render_set.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = Fixtures/render_set.json; sourceTree = "<group>"; };
+		F16CEC979B22F7F648FE637F /* UITests/FlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UITests/FlowTests.swift; sourceTree = "<group>"; };
+		F3DC83C45B024364F6E4974A /* Shared/Workflow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shared/Workflow.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		20810053FD2F028BCF1CF257 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		3EE75734586CE0A1FF2FD95B /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C199F8AA17E0370337210C05 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		0A3E27B8CA818264D75C8D81 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				CD53A155CAF4EE61C4497A14 /* eRecipe.app */,
+				C9789B6E9018E2E8D6CCA293 /* ShareExtension.appex */,
+				B606010AF390F247F36B2EA6 /* eRecipeUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		0D6E4079E36703EBD37C0072 = {
+			isa = PBXGroup;
+			children = (
+				E4A116DE6EA1EF90607B5FBD /* App/HomeView.swift */,
+				E72685212AF966A85FF3F9E9 /* App/Info.plist */,
+				205D88E14B9C11A5F497930A /* App/RecipePhotoPicker.swift */,
+				E9C30E955960894C73571124 /* App/eRecipe.entitlements */,
+				83706B06A55724768DD65385 /* App/eRecipeApp.swift */,
+				67E24BBFAD93DAA5154614DB /* Config/Signing.xcconfig */,
+				EC41C485640E5D21745BEDB1 /* Fixtures/demo-preview.png */,
+				1F167BD278F26BC1E727A82A /* Fixtures/device_selected.json */,
+				EA187B7ABF0F1AEA18EC87BF /* Fixtures/import_text.json */,
+				1221E4FC65B6F522670AF87C /* Fixtures/job_extracted.json */,
+				2A54120F9D368031D60AED60 /* Fixtures/publication_selected.json */,
+				EEC7B799081358E122CBB6C1 /* Fixtures/render_set.json */,
+				9B3F41131678F463083612A2 /* Fixtures/revision.json */,
+				EBA34A9137BD9AA79CBBBF92 /* Fixtures/status.json */,
+				B47E1912DF73A535128FAB3D /* ShareExtension/Info.plist */,
+				CAD35054A8361FDDDDA0D4AB /* ShareExtension/ShareViewController.swift */,
+				7AF37620B6A8E84A39B29A50 /* ShareExtension/eRecipe.entitlements */,
+				8CDF2DA57B1284221555D8F7 /* Shared/APIClient.swift */,
+				23F795EA3B860B1EBB3500D7 /* Shared/AutomaticDelivery.swift */,
+				5E6BC45981DFB05D2ADE7B49 /* Shared/ClientEnvironment.swift */,
+				2862EC28DC89F99D83442317 /* Shared/DemoProtocol.swift */,
+				A97AC3E1EFFD26F1BCD4C56C /* Shared/EnrollmentLink.swift */,
+				9A14B38756FFE7CB8EE58FB7 /* Shared/ImagePreparation.swift */,
+				7E6D5FC12E0DF7028A45ADD3 /* Shared/ImportView.swift */,
+				33F6EF03795119E2B0E0C02A /* Shared/Models.swift */,
+				4440F7E37D28DFB6B72D759C /* Shared/RecipeFlowView.swift */,
+				56E2AE63A8BF755614A16C8F /* Shared/SharedInputLoader.swift */,
+				B5DB56CDFDD28EA97215349A /* Shared/SharedStore.swift */,
+				327E2593F1CE7BA5B2C7ADE8 /* Shared/UploadManager.swift */,
+				F3DC83C45B024364F6E4974A /* Shared/Workflow.swift */,
+				330145E459533410D8E30002 /* eRecipe.xcodeproj/xcuserdata/kidder.xcuserdatad/xcschemes/xcschememanagement.plist */,
+				F16CEC979B22F7F648FE637F /* UITests/FlowTests.swift */,
+				0A3E27B8CA818264D75C8D81 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		22374971AC193FAA0182AC27 /* eRecipe */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 0CB8B02BE9E260F2234108D0 /* Build configuration list for PBXNativeTarget "eRecipe" */;
+			buildPhases = (
+				43AB30B21C85FF75B27B7A78 /* Sources */,
+				39F2243E53EFDDBB7F8FAC25 /* Resources */,
+				C199F8AA17E0370337210C05 /* Frameworks */,
+				DD615B768CF8ACFE2ED53E52 /* Embed App Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				ABE2EAC56F3B27D5A0F55922 /* PBXTargetDependency */,
+			);
+			name = eRecipe;
+			productName = eRecipe;
+			productReference = CD53A155CAF4EE61C4497A14 /* eRecipe.app */;
+			productType = "com.apple.product-type.application";
+		};
+		8BD872E195471720E3E1B332 /* ShareExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A2784B9C1D3FF457BFCA8860 /* Build configuration list for PBXNativeTarget "ShareExtension" */;
+			buildPhases = (
+				9B5A16B1AAF1548774EFB2B3 /* Sources */,
+				3B8D7C74D005B4176256D5DD /* Resources */,
+				20810053FD2F028BCF1CF257 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = ShareExtension;
+			productName = ShareExtension;
+			productReference = C9789B6E9018E2E8D6CCA293 /* ShareExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		EFE911B1F64BD8C0979BB363 /* eRecipeUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 0C6764198E4BCB2371400207 /* Build configuration list for PBXNativeTarget "eRecipeUITests" */;
+			buildPhases = (
+				B8ECBD1D3966879528AC98C2 /* Sources */,
+				EBEC02730AAC8772E39D9005 /* Resources */,
+				3EE75734586CE0A1FF2FD95B /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				E615486CDA23F2A08AB4CBF7 /* PBXTargetDependency */,
+			);
+			name = eRecipeUITests;
+			productName = eRecipeUITests;
+			productReference = B606010AF390F247F36B2EA6 /* eRecipeUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		244210E48437B6556980A702 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				LastUpgradeCheck = 2700;
+			};
+			buildConfigurationList = 76F8DEC3DFE0BDB465198890 /* Build configuration list for PBXProject "eRecipe" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 0D6E4079E36703EBD37C0072;
+			productRefGroup = 0A3E27B8CA818264D75C8D81 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				22374971AC193FAA0182AC27 /* eRecipe */,
+				8BD872E195471720E3E1B332 /* ShareExtension */,
+				EFE911B1F64BD8C0979BB363 /* eRecipeUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		39F2243E53EFDDBB7F8FAC25 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				8EC97CD718F92828E104A15C /* Fixtures/demo-preview.png in Resources */,
+				FBF347040AE2460A60985B6F /* Fixtures/device_selected.json in Resources */,
+				B2F7DD62B9056774C03D4808 /* Fixtures/import_text.json in Resources */,
+				D2C1BF5CDBFB618A20A6E794 /* Fixtures/job_extracted.json in Resources */,
+				096E53602E69E1FEA7B08CDD /* Fixtures/publication_selected.json in Resources */,
+				8BEA1AC5D0C1D2DEA6922799 /* Fixtures/render_set.json in Resources */,
+				A0DE2C74D0A99A307B61EF2D /* Fixtures/revision.json in Resources */,
+				1E88653C6836B40989A49522 /* Fixtures/status.json in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		3B8D7C74D005B4176256D5DD /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				0DA6082E72D1D1A2FD5B3E7F /* Fixtures/demo-preview.png in Resources */,
+				C16BD02D56E5F25520ED6CB5 /* Fixtures/device_selected.json in Resources */,
+				DAAF64ECCDF5C7DC5B9A4AB3 /* Fixtures/import_text.json in Resources */,
+				0AE86117975E6E22E244BC0E /* Fixtures/job_extracted.json in Resources */,
+				4D53635C767AD8AA7C95ACA3 /* Fixtures/publication_selected.json in Resources */,
+				4CB3972EBB3E1FB0AA14C745 /* Fixtures/render_set.json in Resources */,
+				56B8A2EEFD5DE2E1B3DD03FE /* Fixtures/revision.json in Resources */,
+				167BA35083C064F604F75B27 /* Fixtures/status.json in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		EBEC02730AAC8772E39D9005 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		43AB30B21C85FF75B27B7A78 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				6C0100BF7336449A6AEE14B2 /* App/HomeView.swift in Sources */,
+				1D87A8D7AC866BAA768ECDE3 /* App/RecipePhotoPicker.swift in Sources */,
+				B6FB9BB48225C169C727A2A2 /* App/eRecipeApp.swift in Sources */,
+				2FC86C8214EDEE6FD07560FD /* Shared/APIClient.swift in Sources */,
+				CAE2BCE2E3889B8F73F6B325 /* Shared/AutomaticDelivery.swift in Sources */,
+				16F43ACF83D94830D645355A /* Shared/ClientEnvironment.swift in Sources */,
+				88B86B87524006F00DF3DF5C /* Shared/DemoProtocol.swift in Sources */,
+				AB552DA484F12D004C16D1EA /* Shared/EnrollmentLink.swift in Sources */,
+				02AD68FFDE33897732532C14 /* Shared/ImagePreparation.swift in Sources */,
+				FF071ED01E3EC47CA496E1EC /* Shared/ImportView.swift in Sources */,
+				1256856DC5B0566C09D88AA8 /* Shared/Models.swift in Sources */,
+				DA5F08877F9DDF2EAA00DF17 /* Shared/RecipeFlowView.swift in Sources */,
+				02F350D39480620B24A0553A /* Shared/SharedInputLoader.swift in Sources */,
+				2002AF8CEE191115580C5F2D /* Shared/SharedStore.swift in Sources */,
+				DBCE00AF8CA49BDFAA527B12 /* Shared/UploadManager.swift in Sources */,
+				FE8874FD4E38DC05B6660130 /* Shared/Workflow.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		9B5A16B1AAF1548774EFB2B3 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C7FAF6DBC1B8A8C34CC61BC7 /* ShareExtension/ShareViewController.swift in Sources */,
+				D20EA55B26B13C02E85C2422 /* Shared/APIClient.swift in Sources */,
+				7E37766FF3FD9CD649C46463 /* Shared/AutomaticDelivery.swift in Sources */,
+				D11F6444D72EEBACF931BA1E /* Shared/ClientEnvironment.swift in Sources */,
+				6F2A57233580D19EBB936EAC /* Shared/DemoProtocol.swift in Sources */,
+				D31CE96B65F84B67122518B7 /* Shared/EnrollmentLink.swift in Sources */,
+				3AE93A6903A8F9D1A6706742 /* Shared/ImagePreparation.swift in Sources */,
+				F861749BF90E7403154DCFFE /* Shared/ImportView.swift in Sources */,
+				FBE3BEB45573AC790D141DAF /* Shared/Models.swift in Sources */,
+				99CB777ACEEC4D4F97BD73EE /* Shared/RecipeFlowView.swift in Sources */,
+				A3D6B1155681B9BD083C995B /* Shared/SharedInputLoader.swift in Sources */,
+				BFF57643F9494FD76A81D5E1 /* Shared/SharedStore.swift in Sources */,
+				2D7F4BDFB0AD356E9C3645C5 /* Shared/UploadManager.swift in Sources */,
+				10AF807A3870AC720E3B8BF9 /* Shared/Workflow.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B8ECBD1D3966879528AC98C2 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1A2282B90A2DBCAF307E423D /* UITests/FlowTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		ABE2EAC56F3B27D5A0F55922 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 8BD872E195471720E3E1B332 /* ShareExtension */;
+			targetProxy = 91FFAEFF1D73258F53A85D87 /* PBXContainerItemProxy */;
+		};
+		E615486CDA23F2A08AB4CBF7 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 22374971AC193FAA0182AC27 /* eRecipe */;
+			targetProxy = 91AEAD1C14697AECCEFEA4F3 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		0B0C687DF8B6B8DC790B519C /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 67E24BBFAD93DAA5154614DB /* Config/Signing.xcconfig */;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_STYLE = Automatic;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "";
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		5AD9F42E1D60FFDEEA38A51D /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 67E24BBFAD93DAA5154614DB /* Config/Signing.xcconfig */;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = ShareExtension/eRecipe.entitlements;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = ShareExtension/Info.plist;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-lsqlite3",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "$(ERECIPE_BUNDLE_PREFIX).share";
+				PRODUCT_NAME = ShareExtension;
+				SKIP_INSTALL = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+			};
+			name = Release;
+		};
+		5E05CBDEE522F6B9A885EF52 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 67E24BBFAD93DAA5154614DB /* Config/Signing.xcconfig */;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = App/eRecipe.entitlements;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = App/Info.plist;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-lsqlite3",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "$(ERECIPE_BUNDLE_PREFIX)";
+				PRODUCT_NAME = eRecipe;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		73EBF6644258C120893E685D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 67E24BBFAD93DAA5154614DB /* Config/Signing.xcconfig */;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_STYLE = Automatic;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		D5CEDC741F4953DCEE5D4729 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 67E24BBFAD93DAA5154614DB /* Config/Signing.xcconfig */;
+			buildSettings = {
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				GENERATE_INFOPLIST_FILE = YES;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-lsqlite3",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "$(ERECIPE_BUNDLE_PREFIX).uitests";
+				PRODUCT_NAME = eRecipeUITests;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				TEST_TARGET_NAME = eRecipe;
+			};
+			name = Debug;
+		};
+		DD0E6D586A6770C89D23020F /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 67E24BBFAD93DAA5154614DB /* Config/Signing.xcconfig */;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = App/eRecipe.entitlements;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = App/Info.plist;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-lsqlite3",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "$(ERECIPE_BUNDLE_PREFIX)";
+				PRODUCT_NAME = eRecipe;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+			};
+			name = Release;
+		};
+		E4AB0FBB093FC35A68DC7A56 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 67E24BBFAD93DAA5154614DB /* Config/Signing.xcconfig */;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = ShareExtension/eRecipe.entitlements;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = ShareExtension/Info.plist;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-lsqlite3",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "$(ERECIPE_BUNDLE_PREFIX).share";
+				PRODUCT_NAME = ShareExtension;
+				SKIP_INSTALL = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		F3A7C5E63814F2CB594AF0DA /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 67E24BBFAD93DAA5154614DB /* Config/Signing.xcconfig */;
+			buildSettings = {
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				GENERATE_INFOPLIST_FILE = YES;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-lsqlite3",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "$(ERECIPE_BUNDLE_PREFIX).uitests";
+				PRODUCT_NAME = eRecipeUITests;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				TEST_TARGET_NAME = eRecipe;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		0C6764198E4BCB2371400207 /* Build configuration list for PBXNativeTarget "eRecipeUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D5CEDC741F4953DCEE5D4729 /* Debug */,
+				F3A7C5E63814F2CB594AF0DA /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		0CB8B02BE9E260F2234108D0 /* Build configuration list for PBXNativeTarget "eRecipe" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5E05CBDEE522F6B9A885EF52 /* Debug */,
+				DD0E6D586A6770C89D23020F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		76F8DEC3DFE0BDB465198890 /* Build configuration list for PBXProject "eRecipe" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				73EBF6644258C120893E685D /* Debug */,
+				0B0C687DF8B6B8DC790B519C /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A2784B9C1D3FF457BFCA8860 /* Build configuration list for PBXNativeTarget "ShareExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E4AB0FBB093FC35A68DC7A56 /* Debug */,
+				5AD9F42E1D60FFDEEA38A51D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 244210E48437B6556980A702 /* Project object */;
+}

@@ -1,6 +1,7 @@
 """Operator CLI for the processing domain; independent of the in-progress HTTP API."""
 import argparse
 import json
+import logging
 from pathlib import Path
 import signal
 
@@ -10,6 +11,8 @@ from .processing import ProcessingService, Worker
 
 
 def main():
+    logging.basicConfig(level=logging.WARNING)
+    logging.getLogger('server.recipes').setLevel(logging.INFO)
     parser = argparse.ArgumentParser(description="eRecipe durable processing jobs")
     parser.add_argument("--data-dir", type=Path, default=Path(__file__).resolve().parents[1] / "data")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -22,7 +25,7 @@ def main():
     url = commands.add_parser("import-url", help="Capture a public recipe webpage and enqueue extraction")
     url.add_argument("url")
     url.add_argument("--key", default=None)
-    worker = commands.add_parser("worker", help="Run extraction and rendering jobs (may make billable OpenAI calls)")
+    worker = commands.add_parser("worker", help="Run extraction and rendering jobs (may make billable provider calls)")
     modes = worker.add_mutually_exclusive_group()
     modes.add_argument("--once", action="store_true", help="Process at most one stage")
     modes.add_argument("--drain", action="store_true", help="Process available stages until idle")

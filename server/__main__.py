@@ -3,6 +3,7 @@ import argparse
 import asyncio
 from contextlib import contextmanager
 import fcntl
+import logging
 import os
 from pathlib import Path
 import signal
@@ -53,6 +54,8 @@ async def serve(lan,web,service,worker,args):
 
 
 def main():
+    logging.basicConfig(level=logging.WARNING)
+    logging.getLogger('server.recipes').setLevel(logging.INFO)
     p=argparse.ArgumentParser(description='eRecipe server: LAN reader and private Tailscale application API')
     p.add_argument('--base-url',required=True,help='LAN origin reachable by the reader, e.g. http://192.168.1.20:8000')
     p.add_argument('--host',default='0.0.0.0')

@@ -208,11 +208,12 @@ class Service:
     def read(self,op,p,q,actor):
         v=self.views
         if op=='getStatus':
-            configured=bool(self.config.api_key)
+            configured=self.config.readiness()['configured']
             result=dict(api_version='1',contract_version=DOCUMENT['info']['version'],server_id=self.db.server_id,user=v.user(actor['id']),
                 capabilities=dict(import_kinds=['text','images','url'],source_refresh=True,publication=True,archive=True,render_profile_ids=[PROFILE['id']],limits=LIMITS),
                 readiness=dict(worker='ready' if self.worker_ready else 'unavailable',extraction='ready' if configured else 'not_configured',rendering='ready',
-                               issues=[] if configured else [dict(code='configuration_missing',message='Configure OpenAI on the server, then retry failed extraction.',retryable=True,details={})]))
+                               issues=[] if configured else [dict(code='configuration_missing',message=self.config.configuration_issue,retryable=True,
+                                                                 details=dict(provider=self.config.provider,model=self.config.model))]))
             return 200,result,None
         if op=='getDevice':return 200,self.device(),None
         direct={'getUser':('users','user_id',v.admin_user),'getEnrollment':('enrollments','enrollment_id',v.enrollment),

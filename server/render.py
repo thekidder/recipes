@@ -75,3 +75,27 @@ def render(kind, version, diagnostic=None):
     output = BytesIO()
     im.point(lambda p: 255 if p >= 160 else 0).convert("1").save(output, format="PNG", optimize=True)
     return output.getvalue()
+
+
+def render_tap_trial(page, version):
+    """Two deliberately separate screens; no general recipe pagination implied."""
+    if page not in (1, 2):
+        raise ValueError("Trial page must be 1 or 2")
+    im = Image.new("L", SIZE, 255)
+    d = ImageDraw.Draw(im)
+    d.text((70, 45), f"PAGE {page} / 2", font=font(110), fill=0)
+    d.text((70, 205), "Lemon chickpea salad", font=font(72), fill=0)
+    d.line((70, 310, 1802, 310), fill=0, width=4)
+    _, ingredients, steps = RECIPES["A"]
+    d.text((70, 350), "INGREDIENTS" if page == 1 else "METHOD", font=font(44), fill=0)
+    items = ingredients if page == 1 else [f"{n}. {step}" for n, step in enumerate(steps, 1)]
+    y = 440
+    for item in items:
+        y = paragraph(d, item, 70, y, 1720, size=48, gap=16, bottom=1140) + 22
+    d.line((70, 1180, 1802, 1180), fill=0, width=3)
+    d.text((70, 1210), f"Tap the CENTER to go to page {3 - page}.", font=font(44), fill=0)
+    d.text((70, 1280), "Wait until the screen finishes updating before tapping again.", font=font(32), fill=0)
+    d.text((70, 1340), f"TWO-PAGE TRIAL  |  {version}", font=font(25), fill=0)
+    output = BytesIO()
+    im.point(lambda p: 255 if p >= 160 else 0).convert("1").save(output, format="PNG", optimize=True)
+    return output.getvalue()

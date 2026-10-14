@@ -1,6 +1,7 @@
 """Single-device BYOS experiment. One process; device never triggers synchronous rendering."""
 from __future__ import annotations
 from copy import deepcopy
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from threading import RLock
@@ -18,7 +19,12 @@ import uuid
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, Response
 from pydantic import BaseModel, ConfigDict, Field
-from server.render import render
+from server.render import render, render_tap_trial
+
+# Official firmware maps GPIO/EXT0/EXT1 to these values. This is a wake
+# reason, not a gesture ID: hardware verification remains part of the trial.
+TAP_WAKE_SOURCES = {"button", "ext0", "ext1"}
+TAP_DEBOUNCE_SECONDS = 3
 
 ROOT = Path(__file__).resolve().parent
 TELEMETRY = set("""PERCENT_CHARGED BATTERY_VOLTAGE BATTERY_CHARGING USB_CONNECTED BATTERY_COUNT
@@ -92,6 +98,7 @@ class Store:
                           "publications": [], "unplugged_at": None, "charge_samples": []}
         if device_id:
             self.state["device_id"] = device_id.upper()
+        self.state.setdefault("tap_trial", None)
         # Starting settings are used only for a new data directory. Controls persist thereafter.
         self.save()
         self.event("server_start", base_url=self.base_url)
@@ -139,6 +146,8 @@ class Store:
 
     def publish(self, asset, reason):
         with self.lock:
+            if asset["kind"] != "TAP_TRIAL" and self.state.get("tap_trial"):
+                self.set_mode("soak")
             changed = asset["version"] != self.state["current"]["version"]
             self.state.update(current=asset, publication_id=uuid.uuid4().hex[:12], published_at=now())
             self.state["updates"] += int(changed)
@@ -157,6 +166,84 @@ class Store:
             self.event("experiment_boundary", next_mode=mode)
             self.state.update(unplugged_at=None, charge_samples=[], intervals=[], interval_baseline=None)
         self.state["mode"] = mode
+        if mode != "tap_trial":
+            self.state["tap_trial"] = None
+
+    def start_tap_trial(self):
+        # Prepare both images before switching selection; never render on a tap.
+        selected = self.status()
+        trial_id = uuid.uuid4().hex[:12]
+        pages = [self.asset(render_tap_trial(n, trial_id), "TAP_TRIAL",
+                            f"Tap trial / page {n} of 2") for n in (1, 2)]
+        with self.lock, self.trial_update():
+            if any(self.state[k] != selected[k] for k in ("publication_id", "mode", "run_id")):
+                raise HTTPException(409, "Selection changed while preparing the trial; try again")
+            previous = (selected.get("tap_trial") or {}).get("previous") or {
+                "current": selected["current"], "mode": selected["mode"]}
+            self.set_mode("tap_trial")
+            self.state["tap_trial"] = {"id": trial_id, "pages": pages, "page": 1,
+                "previous": previous, "awaiting_fetch": True, "last_advance_at": None,
+                "fetched_pages": [], "advances": 0, "last_source": None, "last_action": "waiting_for_fetch"}
+            self.publish(pages[0], "tap-trial-start")
+            self.event("tap_trial_started", trial_id=trial_id)
+        return self.status()
+
+    def stop_tap_trial(self):
+        with self.lock, self.trial_update():
+            trial = self.state.get("tap_trial")
+            if trial:
+                previous = trial["previous"]
+                self.set_mode(previous["mode"])
+                self.publish(previous["current"], "tap-trial-stop")
+                self.event("tap_trial_stopped", trial_id=trial["id"])
+        return self.status()
+
+    def trial_checkin(self, values):
+        """Advance only in the opt-in trial; unknown/timer wakes always hold."""
+        if not self.state.get("tap_trial"):
+            return
+        with self.lock, self.trial_update():
+            self._trial_checkin(values)
+
+    @contextmanager
+    def trial_update(self):
+        """Keep trial counters and selection together when persistence fails."""
+        previous = deepcopy(self.state)
+        try:
+            yield
+        except BaseException:
+            self.state = previous
+            raise
+
+    def _trial_checkin(self, values):
+        trial = self.state.get("tap_trial")
+        if not trial or self.state["mode"] != "tap_trial":
+            return
+        source = str(values.get("UPDATE_SOURCE", "")).strip().lower()
+        trial["last_source"] = self.redact(source) or None
+        if source not in TAP_WAKE_SOURCES:
+            action = "held_timer" if source == "timer" else "held_unknown_source"
+        elif str(values.get("IMAGE_CACHED", "")).lower() in ("1", "true"):
+            action = "held_cached_navigation"
+        elif trial["awaiting_fetch"]:
+            action = "waiting_for_fetch"
+        elif trial["last_advance_at"] and seconds(now(), trial["last_advance_at"]) < TAP_DEBOUNCE_SECONDS:
+            action = "held_debounce"
+        else:
+            trial["page"] = 3 - trial["page"]
+            trial["advances"] += 1
+            # A previously fetched page can be served from firmware cache with
+            # no new image GET. Only wait for the first fetch of each page.
+            trial["awaiting_fetch"] = trial["page"] not in trial["fetched_pages"]
+            trial["last_advance_at"] = now()
+            action = "advanced"
+        trial["last_action"] = action
+        if action == "advanced":
+            self.publish(trial["pages"][trial["page"] - 1], "tap-trial-advance")
+        else:
+            self.save()
+        self.event("tap_trial_input", trial_id=trial["id"], source=trial["last_source"],
+                   action=action, page=trial["page"], advances=trial["advances"])
 
     def checkin(self, values):
         with self.lock:
@@ -232,7 +319,7 @@ class Publish(BaseModel):
 
 class Settings(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    mode: Literal["soak", "snapshot", "stress"]
+    mode: Literal["soak", "snapshot", "stress", "tap_trial"]
     poll_seconds: int = Field(ge=5, le=3600)
 
 class Confirmation(BaseModel):
@@ -309,6 +396,7 @@ def create_app(directory, base_url, interval=20, device_id=None, *, store=None, 
         values = authenticate(request)
         with store.lock:
             store.checkin(values)
+            store.trial_checkin(values)
             s = store.state
             result = {"status": 0, "filename": s["current"]["filename"],
                       "image_url": store.base_url + "/images/" + s["current"]["filename"],
@@ -352,6 +440,12 @@ def create_app(directory, base_url, interval=20, device_id=None, *, store=None, 
         # Browsers use /control/preview, so these requests represent transport fetch attempts.
         with store.lock:
             store.state["last_fetch"] = {"at": now(), "version": filename[:-4]}
+            trial = store.state.get("tap_trial")
+            if trial and filename == store.state["current"]["filename"]:
+                # Transport evidence only. Stock firmware supplies no display ack.
+                trial["awaiting_fetch"] = False
+                if trial["page"] not in trial["fetched_pages"]:
+                    trial["fetched_pages"].append(trial["page"])
             store.save()
             store.event("image_request", requested_version=filename[:-4])
         return FileResponse(store.assets / filename, media_type="image/png")
@@ -387,6 +481,8 @@ def create_app(directory, base_url, interval=20, device_id=None, *, store=None, 
     def force_refresh():
         selected = store.status()
         kind = selected["current"]["kind"]
+        if kind == "TAP_TRIAL":
+            raise HTTPException(409, "Use Start / restart two-page trial to publish fresh trial images")
         if kind == "RECIPE" and hasattr(store, "force_recipe_refresh"):
             return store.force_recipe_refresh(selected)
         if kind == "DIAG":
@@ -405,13 +501,24 @@ def create_app(directory, base_url, interval=20, device_id=None, *, store=None, 
     @app.post("/control/settings", dependencies=[Depends(local)])
     def settings(body: Settings):
         with store.lock:
+            if body.mode == "tap_trial" and not store.state.get("tap_trial"):
+                raise HTTPException(409, "Start the two-page trial first")
             if store.state["mode"] != body.mode or store.state["poll_seconds"] != body.poll_seconds:
                 store.event("experiment_boundary", next_mode=body.mode, next_poll_seconds=body.poll_seconds)
                 store.state.update(unplugged_at=None, charge_samples=[], intervals=[], interval_baseline=None)
-            store.state.update(mode=body.mode, poll_seconds=body.poll_seconds)
+            store.set_mode(body.mode)
+            store.state.update(poll_seconds=body.poll_seconds)
             store.save()
             store.event("settings")
         return store.status()
+
+    @app.post("/control/tap-trial/start", dependencies=[Depends(local)])
+    def start_tap_trial():
+        return store.start_tap_trial()
+
+    @app.post("/control/tap-trial/stop", dependencies=[Depends(local)])
+    def stop_tap_trial():
+        return store.stop_tap_trial()
 
     @app.post("/control/snapshot", dependencies=[Depends(local)])
     def snapshot():

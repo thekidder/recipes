@@ -20,11 +20,17 @@ table{width:100%;font-size:13px;text-align:left;border-collapse:collapse}td,th{p
 <div id="message" role="status" aria-live="polite"></div>
 <div class="stats panel"><div class="stat">Reported battery<strong id="battery">Unavailable</strong><small id="sample"></small></div><div class="stat">Observed check interval<strong id="interval">Unavailable</strong><small id="requested"></small></div><div class="stat">Unplugged window<strong id="unplugged">Not started</strong><small id="trend"></small></div></div>
 <div class="grid"><section>
+<div class="panel"><h2>Two-page tap trial</h2>
+<p>Show ingredients on page 1 and the method on page 2. Wait for page 1 to appear, then tap the <strong>center</strong> of the touchstrip to alternate pages. Automatic refreshes keep the selected page.</p>
+<button class="primary" id="trial-start">Start / restart two-page trial</button><button id="trial-stop" disabled>Stop and restore previous image</button>
+<p id="trial-status" role="status">Trial is off.</p>
+<p class="muted">Wait for each screen update before tapping again. Left and right browse device history. This trial infers center taps from the reported wake reason; it cannot identify individual gestures. Starting replaces the selected image until you stop or publish something else.</p>
+</div>
 <div class="panel"><h2>Publish a test recipe</h2><p class="muted">Cached fixtures reuse their identifier. Fresh versions change visible content. Publishing a recipe selects soak mode.</p>
 <button class="primary" data-fixture="A">Publish A</button><button class="primary" data-fixture="B">Publish B</button><button data-fixture="LONG">Long recipe</button>
 <label><input type="checkbox" id="fresh">Create a fresh version</label><hr>
 <h2>Polling & experiment mode</h2><label>Seconds <input id="poll" type="number" min="5" max="3600" value="20" style="width:75px"></label>
-<label>Mode <select id="mode"><option value="soak">Static / soak</option><option value="snapshot">Diagnostic snapshot</option><option value="stress">Refresh stress</option></select></label>
+<label>Mode <select id="mode"><option value="soak">Static / soak</option><option value="snapshot">Diagnostic snapshot</option><option value="stress">Refresh stress</option><option value="tap_trial">Two-page tap trial (start above)</option></select></label>
 <button id="settings">Apply</button><button id="snapshot">Publish diagnostic snapshot</button>
 <p class="notice" id="mode-note">Soak: check-ins update this dashboard; the device image stays unchanged.</p>
 <small>Settings reach the X on its next check-in. Stress prepares a new image after every display response for the next cycle.</small>
@@ -54,6 +60,10 @@ async function refresh(){
  try{
   const response=await fetch('/control/status');if(!response.ok)throw new Error('Dashboard unavailable');
   current=await response.json();const s=current;
+  const trial=s.tap_trial;
+  $('trial-stop').disabled=!trial;
+  $('force-refresh').disabled=s.current.kind==='TAP_TRIAL';
+  show('trial-status',trial?`Selected page ${trial.page} / 2 · ${trial.advances} advances · ${trial.awaiting_fetch?'Waiting for first image fetch':'Page has been fetched (display unconfirmed)'} · Last wake: ${trial.last_source??'none'} · ${trial.last_action.replaceAll('_',' ')}`:'Trial is off.');
   show('connection',s.last_checkin?'Device has checked in':'Waiting for device setup');
   show('battery',s.battery_percent===null?'Unavailable':s.battery_percent.toFixed(1)+'%');
   show('sample',s.last_checkin?'Sample '+s.last_checkin+' · '+Math.round(s.sample_age_seconds)+'s old':'No reported sample');
@@ -62,7 +72,7 @@ async function refresh(){
   show('unplugged',s.unplugged_elapsed_hours===null?'Not started':s.unplugged_elapsed_hours.toFixed(2)+' hours');
   const t=s.charge_trend;
   show('trend',t?(t.drop_percentage_points.toFixed(1)+' points over '+t.window_hours.toFixed(1)+'h; '+(t.estimated_remaining_hours===null?'projection unavailable':t.estimated_remaining_hours.toFixed(1)+'h remaining (estimate)')):'Awaiting charge observations');
-  show('mode-note',s.mode==='stress'?'REFRESH STRESS: extra redraws; analyze power separately from recipe use.':s.mode==='snapshot'?'Snapshot: image contains a past telemetry sample and stays unchanged.':'Soak: check-ins update this dashboard; the device image stays unchanged.');
+  show('mode-note',s.mode==='tap_trial'?'Tap trial: center taps request the next page; timer refreshes hold the current page.':s.mode==='stress'?'REFRESH STRESS: extra redraws; analyze power separately from recipe use.':s.mode==='snapshot'?'Snapshot: image contains a past telemetry sample and stays unchanged.':'Soak: check-ins update this dashboard; the device image stays unchanged.');
   $('confirm').disabled=!s.publications.some(p=>p.id===s.publication_id&&!p.confirmed_at);
   show('version',s.current.label+' · '+s.current.version);
   if(previewVersion!==s.current.version){$('preview').src='/control/preview?v='+s.current.version;previewVersion=s.current.version}
@@ -84,6 +94,12 @@ async function refresh(){
 document.querySelectorAll('[data-fixture]').forEach(b=>b.onclick=()=>command('publish',{fixture:b.dataset.fixture,fresh:$('fresh').checked}));
 $('settings').onclick=()=>command('settings',{mode:$('mode').value,poll_seconds:Number($('poll').value)});
 $('snapshot').onclick=()=>command('snapshot');
+$('trial-start').onclick=async()=>{
+  $('trial-start').disabled=true;
+  try{await command('tap-trial/start',{},'Trial selected. Wait for page 1, then tap the center of the touchstrip.');if(current)$('mode').value=current.mode;}
+  finally{$('trial-start').disabled=false;}
+};
+$('trial-stop').onclick=async()=>{await command('tap-trial/stop',{},'Trial stopped. Previous image selected for the next check-in.');if(current)$('mode').value=current.mode;};
 $('force-refresh').onclick=async()=>{
   const button=$('force-refresh');button.disabled=true;button.textContent='Publishing…';
   try{await command('force-refresh',{},'New image published. Waiting for the next device check-in.');}
