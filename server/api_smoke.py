@@ -1,5 +1,6 @@
 """Real two-listener HTTP/restart smoke test. Temporary data, worker disabled."""
 import json
+import os
 from pathlib import Path
 import socket
 import subprocess
@@ -25,7 +26,8 @@ def main():
                  '--app-origin',ORIGIN,'--no-worker','--data-dir',directory]
         process=None
         def start():
-            process=subprocess.Popen(command,cwd=project,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)
+            process=subprocess.Popen(command,cwd=project,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE,
+                                     env={**os.environ, 'ERECIPE_TRMNL_API_KEY': ''})
             for _ in range(100):
                 if process.poll() is not None:raise RuntimeError(process.stderr.read().decode())
                 try:

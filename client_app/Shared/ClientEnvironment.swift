@@ -62,6 +62,9 @@ final class ClientEnvironment {
         }
         store = try SharedStore(root: root)
         if demo {
+            #if DEBUG
+            if ProcessInfo.processInfo.arguments.contains("--demo-reset") { try store.clear() }
+            #endif
             try store.setConnection(Connection(origin: URL(string: "https://recipes.example.invalid")!, serverId: "server_demo",
                 user: Person(id: "user_alex", displayName: "Alex"), credentialId: "credential_phone", isDemo: true))
         }

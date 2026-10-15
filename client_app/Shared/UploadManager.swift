@@ -43,9 +43,14 @@ final class UploadManager: NSObject, URLSessionDataDelegate, URLSessionDownloadD
             let request = try api.request("/api/v1/imports", method: "POST", body: data, key: item.importKey, contentType: item.contentType)
             let demoSession = DemoProtocol.session()
             defer { demoSession.invalidateAndCancel() }
-            let (response, _) = try await demoSession.data(for: request)
-            try accept(response, id: id)
-            try await resumeDelivery(id)
+            let (receiptData, response) = try await demoSession.data(for: request)
+            try accept(APIClient.checked(receiptData, response), id: id)
+            // Keep demo processing alive independently of the dismissed import view.
+            Task {
+                do { try await resumeDelivery(id) }
+                catch { _ = try? environment.store.update(id) { $0.phase = "delivery_failed"; $0.message = error.localizedDescription } }
+            }
+            try environment.store.update(id) { $0.uploadCompletedAt = Date() }
             return
         }
         let current = session(identifier)
@@ -171,6 +176,11 @@ final class UploadManager: NSObject, URLSessionDataDelegate, URLSessionDownloadD
                 value.phase = value.jobId == nil ? "failed" : "delivery_failed"
                 value.message = error.localizedDescription
             }
+        }
+        // Do this after enqueue: completing the extension can suspend its process.
+        // A downstream scheduling failure must not turn an accepted upload into a retry.
+        _ = try? environment.store.update(id) {
+            if $0.jobId != nil { $0.uploadCompletedAt = Date() }
         }
     }
     private func deliveryFailed(_ transfer: DeliveryTransfer, error: Error, response: URLResponse?, session: URLSession) {

@@ -14,6 +14,7 @@ import uvicorn
 from server.app import ROOT
 from server.application import create_apps
 from server.recipes.config import ProcessingConfig
+from server.calendar import CalendarConfig
 
 
 class ManagedServer(uvicorn.Server):
@@ -27,6 +28,7 @@ async def serve(lan,web,service,worker,args):
              ManagedServer(uvicorn.Config(web,host='127.0.0.1',port=args.serve_port,access_log=False,proxy_headers=False))]
     sockets=[]
     thread=None
+    calendar_thread=None
     loop=asyncio.get_running_loop()
     def stop():
         for server in servers:server.should_exit=True
@@ -39,6 +41,9 @@ async def serve(lan,web,service,worker,args):
             sockets.append(sock);sock.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1)
             sock.bind((host,port));sock.listen(128);sock.setblocking(False)
         for sig in (signal.SIGINT,signal.SIGTERM):loop.add_signal_handler(sig,stop)
+        if service.calendar_worker.config.enabled:
+            calendar_thread=Thread(target=service.calendar_worker.run,name='calendar-worker')
+            calendar_thread.start()
         if not args.no_worker:
             thread=Thread(target=worker.run,name='recipe-worker')
             thread.start();service.worker_ready=True
@@ -48,7 +53,9 @@ async def serve(lan,web,service,worker,args):
         await asyncio.gather(*tasks)
     finally:
         stop();service.worker_ready=False;worker.stop()
+        service.calendar_worker.stop()
         if thread:await asyncio.to_thread(thread.join)
+        if calendar_thread:await asyncio.to_thread(calendar_thread.join)
         for sock in sockets:sock.close()
         for sig in (signal.SIGINT,signal.SIGTERM):loop.remove_signal_handler(sig)
 
@@ -75,7 +82,7 @@ def main():
     with (args.data_dir/'server.lock').open('a') as lock:
         try:fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
         except BlockingIOError:p.error('Another server is already using this data directory')
-        try:lan,web,service,worker=create_apps(args.data_dir,args.base_url,origin,args.poll_seconds,args.device_id,config=config)
+        try:lan,web,service,worker=create_apps(args.data_dir,args.base_url,origin,args.poll_seconds,args.device_id,config=config,calendar_config=CalendarConfig.from_env())
         except ValueError as error:p.error(str(error))
         print(f'Reader: {args.base_url}\nApplication: {service.origin or "not configured"}\nServe upstream: http://127.0.0.1:{args.serve_port}\nData: {args.data_dir}')
         try:asyncio.run(serve(lan,web,service,worker,args))

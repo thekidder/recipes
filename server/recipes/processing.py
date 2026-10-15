@@ -215,9 +215,10 @@ class Worker:
             with self.library.connect(write=True) as c:
                 self.library.finish(c, job)
             return
-        images = self.renderer.render_pages(revision["markdown"])
+        plan = self.renderer.layout_document(revision["markdown"])
+        images = self.renderer.render_pages(revision["markdown"], plan=plan)
         assets = [self.library.asset(data, "image/png") for data in images]
-        self.library.complete_render(job, key, self.renderer.VERSION, display_profile, assets)
+        self.library.complete_render(job, key, self.renderer.VERSION, {**display_profile, "selected_layout": plan.layout}, assets)
 
     def _heartbeat(self, job, done):
         while not done.wait(30):

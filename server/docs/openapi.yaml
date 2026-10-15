@@ -4970,9 +4970,41 @@ components:
       additionalProperties: true
       description: Image-fetch observation only. Do not attribute an asset fetch to a particular publication when
         the same image has been selected more than once.
+    CalendarStatus:
+      type: object
+      properties:
+        configured:
+          type: boolean
+        available:
+          type: boolean
+        content_mode:
+          type: string
+          enum: [calendar, recipe, other]
+        synced_at:
+          type: [string, 'null']
+          format: date-time
+        last_attempt_at:
+          type: [string, 'null']
+          format: date-time
+        next_sync_at:
+          type: [string, 'null']
+          format: date-time
+        last_error:
+          type: [string, 'null']
+        cache_age_seconds:
+          type: [number, 'null']
+        dismissal_ready:
+          type: boolean
+        last_input_action:
+          type: [string, 'null']
+      required: [configured, available, content_mode, synced_at, last_attempt_at, next_sync_at, last_error, cache_age_seconds, dismissal_ready, last_input_action]
+      additionalProperties: false
+      description: Server selection and cloud-cache health, not physical display confirmation. synced_at is the last successful cloud image fetch, not the freshness of Google Calendar or weather data. Side navigation can display device history independently.
     Device:
       type: object
       properties:
+        calendar:
+          $ref: '#/components/schemas/CalendarStatus'
         paired:
           type: boolean
         selected_publication:

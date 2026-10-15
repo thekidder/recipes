@@ -47,6 +47,13 @@ def number(value, low=None, high=None):
     except (ValueError, TypeError):
         return None
 
+def battery_reading(values):
+    gauge = number(values.get('GAUGE_SOC'), 0, 100)
+    firmware = number(values.get('PERCENT_CHARGED'), 0, 100)
+    if str(values.get('MODEL', 'x')).lower() == 'x' and gauge is not None:
+        return gauge, 'GAUGE_SOC'
+    return (firmware, 'PERCENT_CHARGED') if firmware is not None else (None, 'unavailable')
+
 def atomic(path, data):
     temp = path.with_name(path.name + "." + uuid.uuid4().hex + ".tmp")
     try:
@@ -205,6 +212,12 @@ class Store:
         with self.lock, self.trial_update():
             self._trial_checkin(values)
 
+    def content_checkin(self, values):
+        """Integrated device store handles recipe dismissal."""
+
+    def content_fetched(self, filename):
+        """Integrated device store records publication-specific fetch evidence."""
+
     @contextmanager
     def trial_update(self):
         """Keep trial counters and selection together when persistence fails."""
@@ -223,8 +236,6 @@ class Store:
         trial["last_source"] = self.redact(source) or None
         if source not in TAP_WAKE_SOURCES:
             action = "held_timer" if source == "timer" else "held_unknown_source"
-        elif str(values.get("IMAGE_CACHED", "")).lower() in ("1", "true"):
-            action = "held_cached_navigation"
         elif trial["awaiting_fetch"]:
             action = "waiting_for_fetch"
         elif trial["last_advance_at"] and seconds(now(), trial["last_advance_at"]) < TAP_DEBOUNCE_SECONDS:
@@ -242,7 +253,10 @@ class Store:
             self.publish(trial["pages"][trial["page"] - 1], "tap-trial-advance")
         else:
             self.save()
+        # IMAGE_CACHED is also true on observed X center taps (FW 1.8.17).
+        # Retain it as telemetry, not as evidence of a left/right gesture.
         self.event("tap_trial_input", trial_id=trial["id"], source=trial["last_source"],
+                   image_cached=values.get("IMAGE_CACHED"),
                    action=action, page=trial["page"], advances=trial["advances"])
 
     def checkin(self, values):
@@ -255,7 +269,7 @@ class Store:
             self.state["interval_baseline"] = stamp
             self.state["checkins"] += 1
             self.state["telemetry"] = {k: self.redact(v) for k, v in values.items() if k in TELEMETRY}
-            charge = number(values.get("PERCENT_CHARGED"), 0, 100)
+            charge, charge_source = battery_reading(values)
             if self.state["unplugged_at"]:
                 if str(values.get("USB_CONNECTED", "")).lower() in ("1", "true") or str(values.get("BATTERY_CHARGING", "")).lower() in ("1", "true"):
                     self.event("soak_interrupted", reason="Device reported external power or charging")
@@ -263,8 +277,11 @@ class Store:
                     self.state["charge_samples"] = []
                 elif charge is not None:
                     samples = self.state["charge_samples"]
+                    if samples and samples[-1].get('source', 'PERCENT_CHARGED') != charge_source:
+                        samples = []
+                        self.state['charge_samples'] = samples
                     if not samples or seconds(stamp, samples[-1]["at"]) >= 300:
-                        samples.append({"at": stamp, "percent": charge})
+                        samples.append({"at": stamp, "percent": charge, "source": charge_source})
                         self.state["charge_samples"] = samples[-1000:]
             self.save()
             self.event("checkin", telemetry=self.state["telemetry"],
@@ -278,17 +295,19 @@ class Store:
         s["image_url"] = self.base_url + "/images/" + s["current"]["filename"]
         intervals = s["intervals"]
         s["observed_interval_seconds"] = intervals[-1] if intervals else None
-        s["battery_percent"] = number(s["telemetry"].get("PERCENT_CHARGED"), 0, 100)
+        s["battery_percent"], s["battery_source"] = battery_reading(s['telemetry'])
+        s["battery_firmware_percent"] = number(s["telemetry"].get("PERCENT_CHARGED"), 0, 100)
+        s["battery_gauge_percent"] = number(s["telemetry"].get("GAUGE_SOC"), 0, 100)
         s["sample_age_seconds"] = seconds(now(), s["last_checkin"]) if s["last_checkin"] else None
         s["unplugged_elapsed_hours"] = seconds(now(), s["unplugged_at"]) / 3600 if s["unplugged_at"] else None
         samples = s["charge_samples"]
         s["charge_trend"] = None
-        if len(samples) >= 2:
+        if len(samples) >= 2 and all(sample.get('source', 'PERCENT_CHARGED') == s['battery_source'] for sample in samples):
             hours = seconds(samples[-1]["at"], samples[0]["at"]) / 3600
             drop = samples[0]["percent"] - samples[-1]["percent"]
             s["charge_trend"] = {"window_hours": hours, "drop_percentage_points": drop,
                 "estimated_remaining_hours": samples[-1]["percent"] * hours / drop if hours >= 2 and drop > 0 else None,
-                "basis": "First-to-last reported charge, user-marked unplugged window; estimate only"}
+                "basis": "First-to-last " + s['battery_source'] + ", user-marked unplugged window; estimate only"}
         return s
 
     def diagnostic(self, stress=False, reason=None, selected=None):
@@ -397,6 +416,7 @@ def create_app(directory, base_url, interval=20, device_id=None, *, store=None, 
         with store.lock:
             store.checkin(values)
             store.trial_checkin(values)
+            store.content_checkin(values)
             s = store.state
             result = {"status": 0, "filename": s["current"]["filename"],
                       "image_url": store.base_url + "/images/" + s["current"]["filename"],
@@ -438,8 +458,9 @@ def create_app(directory, base_url, interval=20, device_id=None, *, store=None, 
         if not re.fullmatch(r"[a-f0-9]{24}\.png", filename) or not (store.assets / filename).is_file():
             raise HTTPException(404)
         # Browsers use /control/preview, so these requests represent transport fetch attempts.
-        with store.lock:
+        with store.lock, store.trial_update():
             store.state["last_fetch"] = {"at": now(), "version": filename[:-4]}
+            store.content_fetched(filename)
             trial = store.state.get("tap_trial")
             if trial and filename == store.state["current"]["filename"]:
                 # Transport evidence only. Stock firmware supplies no display ack.
@@ -483,6 +504,8 @@ def create_app(directory, base_url, interval=20, device_id=None, *, store=None, 
         kind = selected["current"]["kind"]
         if kind == "TAP_TRIAL":
             raise HTTPException(409, "Use Start / restart two-page trial to publish fresh trial images")
+        if kind == "CALENDAR":
+            raise HTTPException(409, "Calendar refreshes automatically from TRMNL")
         if kind == "RECIPE" and hasattr(store, "force_recipe_refresh"):
             return store.force_recipe_refresh(selected)
         if kind == "DIAG":
@@ -497,6 +520,24 @@ def create_app(directory, base_url, interval=20, device_id=None, *, store=None, 
                 raise HTTPException(409, "Selection changed while rendering; try again")
             asset = store.asset(data, kind, label)
             return store.publish(asset, "force-refresh")
+
+    @app.post("/control/calendar/show", dependencies=[Depends(local)])
+    def show_calendar():
+        if not hasattr(store, "show_calendar"):
+            raise HTTPException(409, "Calendar requires the integrated server")
+        from server.api.errors import ApiError
+        try:
+            return store.show_calendar()
+        except ApiError as error:
+            raise HTTPException(error.status, str(error))
+
+    @app.get("/control/calendar/preview", dependencies=[Depends(local)])
+    def calendar_preview():
+        with store.lock:
+            asset = store.state.get("calendar", {}).get("asset")
+            if not asset or not (store.assets / asset['filename']).is_file():
+                raise HTTPException(404, "Calendar image not yet available")
+            return FileResponse(store.assets / asset['filename'], media_type="image/png", headers={"Cache-Control": "no-store"})
 
     @app.post("/control/settings", dependencies=[Depends(local)])
     def settings(body: Settings):

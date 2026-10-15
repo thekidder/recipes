@@ -162,6 +162,9 @@ struct PendingShare: Codable, Identifiable {
     var phase = "saved"
     var recipeId: String?
     var jobId: String?
+    // Written after the import receipt is saved and background delivery is handed off.
+    // Independent of processing/publication success; absent on older records.
+    var uploadCompletedAt: Date?
     var renderSet: RenderSet?
     var revision: Revision?
     var publication: PublicationReceipt?

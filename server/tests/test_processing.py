@@ -20,7 +20,7 @@ from server.recipes.processing import ProcessingService, Worker
 from server.recipes import renderer
 
 RECIPE = {
-    "is_recipe": True, "title": "Lemon chickpea salad", "servings": "4", "prep_time": "15 minutes", "cook_time": None,
+    "is_recipe": True, "title": "Lemon chickpea salad", "servings": "4", "prep_time": "15 minutes", "cook_time": None, "total_time": None, "other_time": None,
     "ingredients": [{"name": None, "items": ["2 cans chickpeas, drained", "1 cucumber, diced", "3 tbsp olive oil", "2 tbsp lemon juice", "1/2 tsp salt"]}],
     "method": [{"name": None, "items": ["Rinse and drain the chickpeas well.", "Combine the chickpeas and cucumber in a bowl.",
                                            "Whisk the olive oil, lemon juice and salt together.", "Toss the salad with the dressing. Serve at room temperature."]}],
@@ -312,7 +312,7 @@ def test_edit_renders_without_api_key_and_cache_reuses_bytes(library):
     assert len(library.all("SELECT * FROM render_sets")) == 2
 
 
-def test_overflow_keeps_complete_markdown_and_no_publishable_image(library):
+def test_long_recipe_keeps_complete_markdown_and_renders_condensed_pages(library):
     long_recipe = deepcopy(RECIPE)
     long_recipe["method"][0]["items"] = ["Stir for 2 minutes and preserve every detail in this unusually long method step."] * 100
     job = submit(library)
@@ -322,9 +322,10 @@ def test_overflow_keeps_complete_markdown_and_no_publishable_image(library):
     detail = library.detail(job["recipe_id"])
     assert detail["current_revision_id"] and len(detail["revisions"]) == 1
     assert detail["revisions"][0]["markdown"].count("Stir for") == 100
-    assert detail["renders"] == []
-    failed = next(j for j in detail["jobs"] if j["kind"] == "render")
-    assert json.loads(failed["error_json"])["code"] == "render_overflow"
+    assert len(detail["renders"]) == 1 and detail["renders"][0]["page_count"] > 1
+    stored = library.required("render_sets", detail["renders"][0]["id"])
+    assert json.loads(stored["display_profile_json"])["selected_layout"] == "condensed"
+    assert all(j["status"] == "succeeded" for j in detail["jobs"])
 
 
 def test_image_order_and_actual_normalized_bytes_preserved_in_request(library):
@@ -502,9 +503,8 @@ def test_chicken_tacos_fits_native_screen_with_all_content():
         assert " ".join(note.split()) in rendered_text
 
 
-def test_renderer_rejects_notes_that_leave_no_body_space():
+def test_renderer_paginates_notes_that_leave_no_body_space():
     recipe = deepcopy(RECIPE)
     recipe["notes"] = ["Preserve this operational detail. " * 30] * 20
-    with pytest.raises(RecipeError) as error:
-        renderer.render_pages(to_markdown(ExtractedRecipe(**recipe)))
-    assert error.value.code == "render_overflow"
+    plan = renderer.layout_document(to_markdown(ExtractedRecipe(**recipe)))
+    assert plan.layout == "condensed" and len(plan.pages) > 1

@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>eRecipe · X battery lab</title>
+<title>eRecipe · TRMNL reader</title>
 <style>
 :root{font:15px system-ui,sans-serif;color:#17322d;background:#f2f5ef}body{max-width:1240px;margin:auto;padding:32px}
 header{display:flex;align-items:center;justify-content:space-between;margin-bottom:28px}h1{font-size:32px;margin:4px 0}h2{font-size:18px}
@@ -16,10 +16,16 @@ img{width:100%;border:1px solid #dce2da}pre{white-space:pre-wrap;overflow-wrap:a
 table{width:100%;font-size:13px;text-align:left;border-collapse:collapse}td,th{padding:8px;border-bottom:1px solid #e7eae5}
 @media(max-width:800px){.grid{grid-template-columns:1fr}body{padding:14px}.stats{grid-template-columns:1fr}}
 </style>
-<header><div><span class="eyebrow">eRecipe / stage 01</span><h1>X battery lab</h1><span class="muted">20-second baseline · single device · local controls</span></div><span id="connection">Connecting…</span></header>
+<header><div><span class="eyebrow">eRecipe</span><h1>TRMNL reader</h1><span class="muted">Calendar and recipes · single device · local controls</span></div><span id="connection">Connecting…</span></header>
 <div id="message" role="status" aria-live="polite"></div>
-<div class="stats panel"><div class="stat">Reported battery<strong id="battery">Unavailable</strong><small id="sample"></small></div><div class="stat">Observed check interval<strong id="interval">Unavailable</strong><small id="requested"></small></div><div class="stat">Unplugged window<strong id="unplugged">Not started</strong><small id="trend"></small></div></div>
+<div class="stats panel"><div class="stat"><span id="battery-label">Battery charge</span><strong id="battery">Unavailable</strong><small id="gauge"></small><br><small id="sample"></small></div><div class="stat">Observed check interval<strong id="interval">Unavailable</strong><small id="requested"></small></div><div class="stat">Unplugged window<strong id="unplugged">Not started</strong><small id="trend"></small></div></div>
 <div class="grid"><section>
+<div class="panel"><h2>Calendar and recipes</h2>
+<p id="calendar-status" role="status">Checking calendar configuration…</p>
+<button id="calendar-show" disabled>Return to calendar</button>
+<a href="/control/calendar/preview" target="_blank" rel="noopener">Preview cached calendar</a>
+<p class="muted">Send a recipe from your phone to replace the calendar. After it loads, a center tap returns to the calendar. Side controls browse the device’s recent screens.</p>
+</div>
 <div class="panel"><h2>Two-page tap trial</h2>
 <p>Show ingredients on page 1 and the method on page 2. Wait for page 1 to appear, then tap the <strong>center</strong> of the touchstrip to alternate pages. Automatic refreshes keep the selected page.</p>
 <button class="primary" id="trial-start">Start / restart two-page trial</button><button id="trial-stop" disabled>Stop and restore previous image</button>
@@ -62,16 +68,25 @@ async function refresh(){
   current=await response.json();const s=current;
   const trial=s.tap_trial;
   $('trial-stop').disabled=!trial;
-  $('force-refresh').disabled=s.current.kind==='TAP_TRIAL';
+  $('force-refresh').disabled=['TAP_TRIAL','CALENDAR'].includes(s.current.kind);
+  const cal=s.calendar_status;
+  $('calendar-show').disabled=!(cal?.configured&&cal?.available);
+  show('calendar-status',!cal?.configured?'Set ERECIPE_TRMNL_API_KEY in server/.env and restart to enable the calendar.':
+    `${cal.content_mode==='other'?'Test screen':cal.content_mode==='recipe'?'Recipe':'Calendar'} selected. `+
+    (cal.available?`Calendar last checked ${cal.synced_at}. `:'Waiting for the first calendar image. ')+
+    (cal.last_error?`Cloud refresh failed (${cal.last_error}); keeping the last valid image. `:'')+
+    (cal.content_mode==='recipe'?(cal.dismissal_ready?'Center tap returns to calendar.':'Waiting for recipe delivery or a calendar image.'):''));
   show('trial-status',trial?`Selected page ${trial.page} / 2 · ${trial.advances} advances · ${trial.awaiting_fetch?'Waiting for first image fetch':'Page has been fetched (display unconfirmed)'} · Last wake: ${trial.last_source??'none'} · ${trial.last_action.replaceAll('_',' ')}`:'Trial is off.');
   show('connection',s.last_checkin?'Device has checked in':'Waiting for device setup');
   show('battery',s.battery_percent===null?'Unavailable':s.battery_percent.toFixed(1)+'%');
+  show('battery-label',s.battery_source==='GAUGE_SOC'?'Battery · fuel gauge':'Battery · firmware fallback');
+  show('gauge',s.battery_source==='GAUGE_SOC'?(s.battery_firmware_percent==null?'Firmware estimate: unavailable':`Firmware estimate: ${s.battery_firmware_percent.toFixed(1)}%`):'Fuel gauge unavailable; using the firmware-reported estimate when available.');
   show('sample',s.last_checkin?'Sample '+s.last_checkin+' · '+Math.round(s.sample_age_seconds)+'s old':'No reported sample');
   show('interval',s.observed_interval_seconds===null?'Unavailable':s.observed_interval_seconds.toFixed(1)+'s');
   show('requested','Requested sleep: '+s.poll_seconds+'s · '+s.checkins+' check-ins');
   show('unplugged',s.unplugged_elapsed_hours===null?'Not started':s.unplugged_elapsed_hours.toFixed(2)+' hours');
   const t=s.charge_trend;
-  show('trend',t?(t.drop_percentage_points.toFixed(1)+' points over '+t.window_hours.toFixed(1)+'h; '+(t.estimated_remaining_hours===null?'projection unavailable':t.estimated_remaining_hours.toFixed(1)+'h remaining (estimate)')):'Awaiting charge observations');
+  show('trend',t?(t.drop_percentage_points.toFixed(1)+' points over '+t.window_hours.toFixed(1)+'h; '+(t.estimated_remaining_hours===null?'projection unavailable':t.estimated_remaining_hours.toFixed(1)+'h remaining (charge trend, not measured runtime)')):'Awaiting charge observations');
   show('mode-note',s.mode==='tap_trial'?'Tap trial: center taps request the next page; timer refreshes hold the current page.':s.mode==='stress'?'REFRESH STRESS: extra redraws; analyze power separately from recipe use.':s.mode==='snapshot'?'Snapshot: image contains a past telemetry sample and stays unchanged.':'Soak: check-ins update this dashboard; the device image stays unchanged.');
   $('confirm').disabled=!s.publications.some(p=>p.id===s.publication_id&&!p.confirmed_at);
   show('version',s.current.label+' · '+s.current.version);
@@ -94,6 +109,7 @@ async function refresh(){
 document.querySelectorAll('[data-fixture]').forEach(b=>b.onclick=()=>command('publish',{fixture:b.dataset.fixture,fresh:$('fresh').checked}));
 $('settings').onclick=()=>command('settings',{mode:$('mode').value,poll_seconds:Number($('poll').value)});
 $('snapshot').onclick=()=>command('snapshot');
+$('calendar-show').onclick=()=>command('calendar/show',{},'Calendar selected for the next device check-in.');
 $('trial-start').onclick=async()=>{
   $('trial-start').disabled=true;
   try{await command('tap-trial/start',{},'Trial selected. Wait for page 1, then tap the center of the touchstrip.');if(current)$('mode').value=current.mode;}

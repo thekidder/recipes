@@ -62,17 +62,14 @@ struct RecipeFlowView: View {
                 } else { ProgressView("Loading share…") }
                 if let error { Text(error).foregroundStyle(.red).font(.callout) }
                 if let actionError { Text(actionError).foregroundStyle(.red).font(.callout) }
-                Button("Refresh status") { Task { await refresh() } }.disabled(busy)
             }.padding()
         }
         .navigationTitle("Recipe delivery").navigationBarTitleDisplayMode(.inline)
         .task(id: scenePhase) {
             guard scenePhase == .active else { return }
-            var delay: UInt64 = 2
             while !Task.isCancelled {
                 await refresh()
-                do { try await Task.sleep(nanoseconds: delay * 1_000_000_000) } catch { return }
-                delay = min(10, delay + 2)
+                do { try await Task.sleep(for: .seconds(1)) } catch { return }
             }
         }
         .onChange(of: page) { _, _ in preview = nil; loadedAsset = nil; Task { await refresh() } }

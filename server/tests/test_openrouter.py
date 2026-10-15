@@ -15,7 +15,7 @@ from server.recipes.openai import OpenAIExtractor
 from server.recipes.openrouter import OpenRouterExtractor
 from server.recipes.processing import ProcessingService, Worker
 
-RECIPE = dict(is_recipe=True, title="Salad", servings="2", prep_time=None, cook_time=None,
+RECIPE = dict(is_recipe=True, title="Salad", servings="2", prep_time=None, cook_time=None, total_time=None, other_time=None,
               ingredients=[dict(name=None, items=["1 cucumber", "1 tbsp lemon juice"])],
               method=[dict(name=None, items=["Slice cucumber and toss with lemon juice."])],
               notes=[], footer=None, warnings=[])

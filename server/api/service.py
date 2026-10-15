@@ -256,4 +256,4 @@ class Service:
             descriptor=json.loads(known['asset_descriptor_json']) if known else {}
             evidence=dict(asset_id=descriptor.get('asset_id'),legacy_image_version=None if descriptor.get('asset_id') else fetch['version'],fetched_at=fetch['at'])
             if fetch['version']==state['current']['version'] and fetch['at']>=state['published_at']:selected_at=fetch['at']
-        return dict(paired=bool(state['device_id']),selected_publication=v.publication(selected),last_checkin_at=state['last_checkin'],last_image_fetch=evidence,selected_asset_fetched_at=selected_at,display_evidence='unavailable')
+        return dict(paired=bool(state['device_id']),selected_publication=v.publication(selected),last_checkin_at=state['last_checkin'],last_image_fetch=evidence,selected_asset_fetched_at=selected_at,display_evidence='unavailable',calendar=self.store.calendar_status())

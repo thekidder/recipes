@@ -107,3 +107,30 @@ server/.venv/bin/python -m server.api_smoke
 Both smoke commands allocate temporary loopback ports and data, and disable the worker. The API smoke checks actual HTTP startup, enrollment, route separation, process locking, and restart recovery. It simulates the configured Serve Host on loopback; it does not establish real Tailscale HTTPS connectivity. Unit/integration tests cover the provider-to-PNG-to-publication path with mocked OpenAI responses.
 
 The enrollment dashboard was checked in headless Chrome at desktop and phone widths using intercepted requests into an isolated test server. User creation, QR display, redemption polling, and revocation completed without JavaScript errors. Actual Tailscale deployment, iOS integration, and physical reader display remain deployment checks. See [API implementation verification](../results/API_IMPLEMENTATION.md) for recorded results.
+
+## Calendar fallback and center-tap dismissal
+
+Configure `ERECIPE_TRMNL_API_KEY` in `server/.env` using the hosted device's key from Devices → Edit → Developer perks. This requires TRMNL Developer access; keep its cloud playlist limited to the calendar/weather composition. This is a separate credential from the local reader key. Never put it in phone configuration. Leave it empty to disable fetching and dismissal. Restart the integrated launcher after changing it.
+
+The background calendar worker calls the official `https://trmnl.com/api/display` endpoint, which advances the cloud playlist. It downloads the screen over HTTPS without sending the cloud key to the image host, validates landscape X dimensions (1872 × 1404), and converts it to the one-bit PNG format already used locally. Wrong-size, malformed, or non-PNG images fail without replacing the previous valid cache. The server never forwards cloud reset, OTA, or special-function instructions to the physical device.
+
+Cloud requests run independently of reader check-ins, at the returned refresh interval (minimum five minutes). Errors retry with backoff and keep the last good image. The worker also runs with `--no-worker`, which disables recipe processing only. Calendar timestamps describe successful downloads, not the underlying Google/weather data freshness. Cached calendar updates during a recipe do not change the selection. The first successful sync selects the calendar if an ordinary fixture was selected; recipes, diagnostic screens, and active tap trials are preserved. Use **Return to calendar** to leave the tap trial after setup.
+
+The dashboard's **Calendar and recipes** panel shows configuration, selection, cache time, and errors. **Preview cached calendar** does not create device delivery evidence. **Return to calendar** selects the cached image for the next check-in. These routes have the same local/Serve protections as the other dashboard controls:
+
+- `GET /control/calendar/preview`
+- `POST /control/calendar/show` (409 until configured and a valid cache exists)
+
+Phone publication still uses `POST /api/v1/publications`. With calendar integration configured, each recipe selection gets a fresh PNG metadata nonce without changing pixels, so even an identical recipe requires a new firmware image fetch. The selection and delivery gate are persisted with publication history. Before that fetch, a physical wake retrieves the recipe rather than dismissing it. After the fetch and a three-second settling window, a physical wake (`button`, `EXT0`, or `EXT1`) returns the cached calendar. Timer, reboot, and unknown wakes hold. `Image-Cached` is not a gesture filter. Without a calendar cache, the recipe stays selected.
+
+The existing polling setting stays unchanged in both modes; use short local intervals for timely phone sends. Calendar sync does not apply the cloud's much longer sleep interval to the reader. The API's `Device.calendar` object reports content mode and cache/dismissal status. Calendar publications use the existing `legacy` publication shape with label “Calendar and weather,” preserving compatibility with current phones. Replaying an earlier send receipt after dismissal does not reselect that recipe.
+
+Stock firmware supplies no unique input event ID or display acknowledgement. First-fetch gating and a settling window mitigate immediate retries, but delayed retries or failed side-cache navigation can still resemble a new center tap. Side navigation can show old cloud screens or dismissed recipes without changing server selection. Page navigation remains on the phone; no firmware pagination is added.
+
+Removing the cloud key disables new syncs and tap dismissal but retains the selected image and cache. Restarting preserves the recipe/calendar selection. Existing recipes first migrated into enabled calendar mode receive a fresh delivery identifier so cached old images cannot bypass the delivery gate.
+
+### Battery readings on firmware 1.8.17
+
+For the X, the dashboard uses valid `Gauge-SOC` as the primary battery percentage and shows `Percent-Charged` as a secondary firmware estimate. If the gauge is missing or invalid, it uses the firmware value with an explicit fallback label. It does not calculate either from voltage. In official firmware commit `9acd348`, the X build enables `BYPASS_BQ27427_SOC`: the main charge field is a voltage estimate while `Gauge-SOC` retains the fuel gauge's measurement. During the October 14 trial these disagreed substantially (about 41% versus 1%, later 60% versus 27%). Neither field alone establishes actual runtime. New charge trends use the selected primary source. When the source changes, the trend samples reset; old unlabelled samples are treated as firmware estimates and are never combined with gauge readings. The cloud's last displayed battery sample may also be stale while the device is pointed at our server.
+
+Sources: [Display API](https://docs.trmnl.com/go/private-api/screens), [X battery implementation](https://github.com/usetrmnl/trmnl-firmware/blob/9acd348270a493ca5f1c627ac91a9469543267ae/src/battery/bq27427_battery.cpp), [X build configuration](https://github.com/usetrmnl/trmnl-firmware/blob/9acd348270a493ca5f1c627ac91a9469543267ae/platformio.ini).

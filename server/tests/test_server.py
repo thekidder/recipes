@@ -160,6 +160,7 @@ def test_settings_run_and_sentinel_handling(client):
 
 def test_charge_projection_requires_window(client):
     store = client.app.state.store
+    store.state['telemetry'] = {'PERCENT_CHARGED': '97'}
     t = datetime.now(timezone.utc)
     store.state["charge_samples"] = [{"at": (t-timedelta(hours=3)).isoformat(), "percent": 100},
                                     {"at": t.isoformat(), "percent": 97}]
@@ -277,7 +278,7 @@ def test_tap_trial_fetch_then_advance_hold_and_cached_return(client, tmp_path):
     trial = store.status()["tap_trial"]
     one, two = [p["filename"] for p in trial["pages"]]
     def display(source):
-        return client.get("/api/display", headers={**auth, "Update-Source": source}).json()["filename"]
+        return client.get("/api/display", headers={**auth, "Update-Source": source, "Image-Cached": "true"}).json()["filename"]
     # Waking the reader to pick up the trial must not skip page one.
     assert display("EXT1") == one
     client.get("/control/preview")
@@ -309,12 +310,14 @@ def test_tap_trial_unknown_sources_never_advance(client, source):
     trial = control(client, "tap-trial/start").json()["tap_trial"]
     first = trial["pages"][0]["filename"]
     client.get("/images/" + first)
-    response = client.get("/api/display", headers={**auth, **({"update_source": source} if source else {})})
+    response = client.get("/api/display", headers={**auth, "Image-Cached": "true", **({"update_source": source} if source else {})})
     assert response.json()["filename"] == first
     assert client.get("/control/status").json()["tap_trial"]["advances"] == 0
 
 
-def test_tap_trial_auth_and_cached_wake(client):
+@pytest.mark.parametrize("source", ["button", "EXT0", "EXT1"])
+@pytest.mark.parametrize("cached", ["true", "1", "false"])
+def test_tap_trial_auth_and_cached_wake(client, source, cached):
     auth = pair(client)
     assert client.post("/control/tap-trial/start").status_code == 403
     assert client.post("/control/tap-trial/stop").status_code == 403
@@ -322,8 +325,8 @@ def test_tap_trial_auth_and_cached_wake(client):
     first = trial["pages"][0]["filename"]
     client.get("/images/" + first)
     assert client.get("/api/display", headers={"Update-Source": "EXT1"}).status_code == 401
-    assert client.get("/api/display", headers={**auth,"UPDATE_SOURCE":"EXT1","IMAGE_CACHED":"true"}).json()["filename"] == first
-    assert client.get("/control/status").json()["tap_trial"]["last_action"] == "held_cached_navigation"
+    assert client.get("/api/display", headers={**auth,"UPDATE_SOURCE":source,"IMAGE_CACHED":cached}).json()["filename"] == trial["pages"][1]["filename"]
+    assert client.get("/control/status").json()["tap_trial"]["last_action"] == "advanced"
     assert control(client, "force-refresh").status_code == 409
 
 

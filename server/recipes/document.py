@@ -47,6 +47,8 @@ class ExtractedRecipe(StrictModel):
     servings: str | None
     prep_time: str | None
     cook_time: str | None
+    total_time: str | None
+    other_time: str | None
     ingredients: list[Group]
     method: list[Group]
     notes: list[str]
@@ -67,6 +69,8 @@ class FrontMatter(StrictModel):
     servings: str | None = None
     prep_time: str | None = None
     cook_time: str | None = None
+    total_time: str | None = None
+    other_time: str | None = None
     layout: Literal["ingredients-method"] = "ingredients-method"
     footer: str | None = None
 
@@ -99,7 +103,8 @@ def to_markdown(recipe):
         raise RecipeError("incomplete_recipe", "The source does not contain one complete recipe. Review the source and extraction warnings.",
                           details={"warnings": recipe.warnings})
     metadata = FrontMatter(title=recipe.title, servings=recipe.servings, prep_time=recipe.prep_time,
-                           cook_time=recipe.cook_time, footer=recipe.footer)
+                           cook_time=recipe.cook_time, total_time=recipe.total_time,
+                           other_time=recipe.other_time, footer=recipe.footer)
     lines = ["---", yaml.safe_dump(metadata.model_dump(exclude_none=True), allow_unicode=True, sort_keys=False).rstrip(), "---", ""]
     for section, groups in (("Ingredients", recipe.ingredients), ("Method", recipe.method)):
         lines.extend(["## " + section, ""])

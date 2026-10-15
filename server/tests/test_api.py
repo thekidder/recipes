@@ -25,7 +25,7 @@ from server.recipes.openai import OpenAIExtractor
 ORIGIN='https://recipes.example.invalid'
 LAN='http://192.168.1.20:8000'
 MAC='AA:BB:CC:DD:EE:01'
-RECIPE=dict(is_recipe=True,title='Lemon salad',servings='4',prep_time=None,cook_time=None,
+RECIPE=dict(is_recipe=True,title='Lemon salad',servings='4',prep_time=None,cook_time=None, total_time=None, other_time=None,
     ingredients=[dict(name=None,items=['2 cans chickpeas','2 tbsp lemon juice'])],
     method=[dict(name=None,items=['Mix the chickpeas and lemon juice.','Serve chilled.'])],notes=[],footer=None,warnings=[])
 MARKDOWN=to_markdown(ExtractedRecipe.model_validate(RECIPE))
@@ -152,6 +152,31 @@ def test_import_replay_conflicts_and_restart(api):
         assert checked(response,'createImport',202)==first
         assert response.headers['Idempotency-Replayed']=='true'
     finally:other.web.close();other.lan.close()
+
+
+def test_multipage_preview_and_second_page_publication(api):
+    api.pair()
+    _, recipe = api.ready()
+    longer = deepcopy(RECIPE)
+    longer['method'][0]['items'] = [f'Step {i}: Stir gently for two minutes and preserve all quantities.' for i in range(60)]
+    saved = api.post(f"/api/v1/recipes/{recipe['id']}/revisions",
+        {'expected_lock_version': 1, 'markdown': to_markdown(ExtractedRecipe(**longer))}, 'saveRevision', 201)
+    assert api.worker.run_once() and len(api.calls) == 1
+    detail = api.get(f"/api/v1/recipes/{recipe['id']}", 'getRecipe')
+    render_id = detail['processing']['current_render_set_id']
+    render = api.get('/api/v1/render-sets/' + render_id, 'getRenderSet')
+    assert len(render['pages']) > 1
+    assert [p['page_number'] for p in render['pages']] == list(range(1, len(render['pages']) + 1))
+    row = api.db.required('render_sets', render_id)
+    assert row['revision_id'] == saved['revision_id']
+    assert json.loads(row['display_profile_json'])['selected_layout'] == 'condensed'
+    preview = api.web.get(render['pages'][1]['asset']['href'], headers=api.headers())
+    assert preview.status_code == 200
+    publication = api.post('/api/v1/publications', {'render_set_id': render_id, 'page_number': 2},
+        'createPublication', 201)['publication']
+    assert api.get('/api/v1/device', 'getDevice')['selected_publication'] == publication
+    displayed = api.lan.get('/api/display', headers=api.firmware_auth).json()
+    assert api.lan.get('/images/' + displayed['filename']).content == preview.content
 
 
 def test_full_text_edit_preview_candidate_and_publication(api):
@@ -365,7 +390,7 @@ def test_tap_trial_shared_listeners_sqlite_restore_and_recipe_override(api, tmp_
     started=api.web.post('/control/tap-trial/start',json={},headers=headers)
     assert started.status_code==200,started.text
     trial=started.json()['tap_trial']
-    auth={'Access-Token':api.service.store.state['api_key'],'Update-Source':'EXT1'}
+    auth={'Access-Token':api.service.store.state['api_key'],'Update-Source':'EXT0','Image-Cached':'true'}
     page_one=api.lan.get('/api/display',headers=auth).json()['filename']
     assert page_one==trial['pages'][0]['filename']
     api.lan.get('/images/'+page_one)

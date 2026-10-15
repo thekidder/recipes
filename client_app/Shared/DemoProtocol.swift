@@ -4,6 +4,14 @@ import UIKit
 
 // Used only by the explicit debug demo. Never intercepts the real client's session.
 final class DemoProtocol: URLProtocol, @unchecked Sendable {
+    private static let failureLock = NSLock()
+    private static var injectedFailures = Set<String>()
+    private static let statusRecoveryDate = Date().addingTimeInterval(5)
+    private static func failOnce(_ flag: String) -> Bool {
+        guard ProcessInfo.processInfo.arguments.contains(flag) else { return false }
+        failureLock.lock(); defer { failureLock.unlock() }
+        return injectedFailures.insert(flag).inserted
+    }
     static func session() -> URLSession {
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [DemoProtocol.self]
@@ -15,6 +23,12 @@ final class DemoProtocol: URLProtocol, @unchecked Sendable {
     override func startLoading() {
         do {
             let path = request.url!.path
+            if path == "/api/v1/status", ProcessInfo.processInfo.arguments.contains("--demo-status-failure"), Date() < Self.statusRecoveryDate {
+                throw URLError(.cannotConnectToHost)
+            }
+            if path == "/api/v1/imports", Self.failOnce("--demo-upload-failure") {
+                finish(Data("{}".utf8), status: 503, type: "application/json"); return
+            }
             var fixture: String
             var status = 200
             switch path {
@@ -49,6 +63,9 @@ final class DemoProtocol: URLProtocol, @unchecked Sendable {
             if path == "/api/v1/jobs/job_render" {
                 body["id"] = "job_render"; body["kind"] = "render"; body["downstream_job_ids"] = []
                 body["result"] = ["revision_id": "revision_initial", "render_set_id": "render_initial"]
+            }
+            if path.hasPrefix("/api/v1/jobs/"), ProcessInfo.processInfo.arguments.contains("--demo-processing-queued") {
+                body["status"] = "queued"; body["result"] = [:]; body["downstream_job_ids"] = []
             }
             finish(try JSONSerialization.data(withJSONObject: body), status: status, type: "application/json")
         } catch { client?.urlProtocol(self, didFailWithError: error) }

@@ -10,7 +10,7 @@ from pydantic import ValidationError
 from .db import dumps, now, uid
 from .document import ExtractedRecipe, RecipeError
 
-PROMPT_VERSION = "recipe-extraction-v4"
+PROMPT_VERSION = "recipe-extraction-v5"
 ADAPTER_VERSION = "responses-httpx-v2"
 log = logging.getLogger(__name__)
 ENDPOINT = "https://api.openai.com/v1/responses"
@@ -35,7 +35,7 @@ cooking instructions exactly in meaning, while removing all commentary and fluff
 editing, not summarizing, improving, adapting, or reproducing the author's narrative voice.
 
 PRESERVE every cooking action and its order; ingredient, quantity, fraction, range, unit, temperature,
-duration, heat level, preparation detail, equipment requirement, doneness cue, handling instruction,
+duration, heat level, preparation detail, equipment use within a method action, doneness cue, handling instruction,
 resting/cooling instruction, serving/storage instruction, and operational exception. Preserve relevant
 instructions even when embedded in a preamble or conversational paragraph. Retain source alternatives
 and their optional status: do not turn an optional shortcut into a mandatory step or drop it. Keep
@@ -65,10 +65,25 @@ away cooking details just to fit a display. Each item is literal text, not Markd
 the group name in each step. Preserve the source title and servings wording. If no title exists, infer
 only a short descriptive title and identify that inference in warnings.
 
-Unknown metadata is null. Only populate prep_time or cook_time if the source identifies that category.
-Preserve total or uncategorized time in notes with its original meaning, not mislabelled as cook_time.
-Notes contain only additional operational recipe information not already present elsewhere. Footer is
-null unless there is a useful short serving/storage instruction that is not duplicated elsewhere.
+Unknown metadata is null. Timing summaries belong only in the header metadata, never notes or footer.
+Only populate prep_time, cook_time, or total_time if the source identifies that category. Preserve
+other source timing summaries in other_time with their original labels and qualifiers, for example
+'Rest: 30 minutes' or 'Time: 15 minutes, plus resting'. Never mislabel total/uncategorized time as
+cook_time, calculate a missing total, or duplicate a timing summary across header fields.
+Keep action-specific durations in their method steps (for example, 'Bake for 20 minutes'). Move any
+timed resting, cooling, serving, storage, or freezing instructions from source notes/footer into the
+appropriate method step or a final storage step, preserving the full instruction and its duration.
+Do not repeat these instructions in notes/footer or turn storage durations into recipe total time.
+
+Omit standalone special-equipment lists and recipe requirements, including 'Special equipment',
+'Equipment needed', or 'You will need' notes. Never relocate those lists to the header, ingredients,
+method, group names, or warnings. Equipment may remain naturally in actual method actions, such as
+'Pulse the cashews in a food processor' or 'Bake on a rimmed baking sheet'. Do not invent method
+actions just to retain equipment from a requirements list.
+
+Notes contain only additional operational recipe information not already present elsewhere, with
+no timing instructions/summaries or equipment requirements. Footer is null unless there is a useful
+short serving/storage instruction without timing or equipment requirements, not duplicated elsewhere.
 
 If content is ambiguous or incomplete, report the specific uncertainty in warnings rather than filling
 gaps. If no usable complete recipe exists, or multiple distinct recipes require selection, set
@@ -76,7 +91,9 @@ is_recipe=false, preserve reliable fields, use empty groups where unavailable, a
 warnings. Do not merge separate recipes. Include every schema field.
 
 Before returning, check both directions: every output instruction must be supported by the source,
-and every source cooking detail must still be represented. Then remove any remaining non-operational
+and every source cooking detail, except omitted standalone equipment requirements, must still be represented.
+Check that timing summaries appear only in header fields and timed actions remain in the method,
+with no timing or equipment requirements in notes/footer. Then remove any remaining non-operational
 commentary. Do not include this check or explanations of editorial choices in the recipe."""
 
 

@@ -2,6 +2,7 @@
 import argparse
 import json
 import math
+import os
 import socket
 import statistics
 import subprocess
@@ -30,7 +31,8 @@ def main():
         process = subprocess.Popen([sys.executable, "-m", "server", "--base-url", advertised,
             "--host", "127.0.0.1", "--port", str(port), "--serve-port", str(serve_port),
             "--no-worker", "--data-dir", directory],
-            cwd=project, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+            cwd=project, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+            env={**os.environ, 'ERECIPE_TRMNL_API_KEY': ''})
         try:
             with httpx.Client(base_url=base, timeout=5) as client:
                 for _ in range(100):

@@ -57,7 +57,7 @@ struct HomeView: View {
             .confirmationDialog("Server revocation could not be confirmed. Removing this device’s local data does not revoke its server credential.", isPresented: $localRemoval, titleVisibility: .visible) {
                 Button("Remove local data anyway", role: .destructive) { disconnect(localOnly: true) }
             }
-            .sheet(isPresented: $showImport, onDismiss: { Task { await refresh() } }) {
+            .sheet(isPresented: $showImport, onDismiss: { Task { await refresh() } }) { [importKind, photoInput] in
                 NavigationStack { ImportView(environment: environment, initialInput: photoInput ?? demoSharedInput, entryKind: importKind, finish: { showImport = false }) }
             }
             .sheet(isPresented: $showPhotos, onDismiss: {
@@ -122,6 +122,7 @@ struct HomeView: View {
                                     Text(item.phase.capitalized).font(.caption).foregroundStyle(.secondary)
                                 }
                             }
+                            .accessibilityIdentifier("recent-share")
                         }
                     }
                 } else {
