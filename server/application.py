@@ -15,7 +15,7 @@ def create_apps(directory, base_url, app_origin='', interval=20, device_id=None,
     calendar_config = calendar_config or CalendarConfig()
     store = DeviceStore(library,base_url,interval,device_id,calendar_config)
     service = Service(library,store,origin,config if config is not None else ProcessingConfig.from_env())
-    lan = create_app(directory,base_url,store=store)
+    lan = create_app(directory,base_url,store=store,service=service)
     web = create_web_app(service)
     worker = Worker(library,service.config)
     service.calendar_worker = CalendarWorker(store, calendar_config)

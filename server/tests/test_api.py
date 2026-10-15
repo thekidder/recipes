@@ -609,3 +609,93 @@ def test_url_capture_retains_html_on_parse_failure_and_resumes_saved_response(ap
     assert api.worker.run_once()
     recovered=api.get('/api/v1/jobs/'+item['job_id'],'getJob')
     assert recovered['status']=='succeeded' and recovered['attempt_count']==2 and len(recovered['downstream_job_ids'])==1
+
+
+def test_dashboard_library_and_send(api):
+    pending = api.imported()
+    first = api.lan.get('/control/recipes').json()['items'][0]
+    assert first['id'] == pending['recipe_id'] and first['page_count'] == 0
+    assert first['processing']['current_preview'] == 'none'
+    assert api.worker.run_once() and api.worker.run_once()
+    listed = api.web.get('/control/recipes').json()['items'][0]
+    assert listed['title'] == 'Lemon salad' and listed['page_count'] >= 1
+    path = '/control/recipes/' + listed['id'] + '/send'
+    body = {'render_set_id': listed['processing']['current_render_set_id'], 'page_number': 1}
+    headers = {'Origin': ORIGIN, 'X-eRecipe-Control': '1'}
+    assert api.web.post(path, json=body, headers=headers).status_code == 409  # Not paired.
+    api.pair()
+    previous = api.service.store.state['publication_id']
+    assert api.web.get('/control/preview').status_code == 200
+    assert api.service.store.state['publication_id'] == previous
+    assert api.service.store.state['last_fetch'] is None
+    sent = api.web.post(path, json=body, headers=headers)
+    assert sent.status_code == 201, sent.text
+    assert sent.json()['publication']['selected_by']['id'] == 'local'
+    assert api.service.store.state['current']['label'] == 'Lemon salad'
+    displayed = api.lan.get('/api/display', headers=api.firmware_auth).json()
+    assert api.lan.get('/images/' + displayed['filename']).status_code == 200
+    assert api.service.store.state['mode'] == 'soak'
+    assert api.lan.post(path, json={**body, 'page_number': 1000}, headers={'X-eRecipe-Control':'1'}).status_code == 422
+    assert api.lan.post(path, json={**body, 'page_number': 1.5}, headers={'X-eRecipe-Control':'1'}).status_code == 422
+
+
+def test_dashboard_send_rejects_stale_and_archived_recipes(api):
+    api.pair()
+    _, recipe = api.ready()
+    path = '/control/recipes/' + recipe['id'] + '/send'
+    body = {'render_set_id':recipe['processing']['current_render_set_id'], 'page_number':1}
+    headers = {'X-eRecipe-Control':'1'}
+    longer = deepcopy(RECIPE)
+    longer['method'][0]['items'] = [f'Step {i}: Stir gently for two minutes and preserve all quantities.' for i in range(60)]
+    api.post(f"/api/v1/recipes/{recipe['id']}/revisions",
+             {'expected_lock_version':1, 'markdown':to_markdown(ExtractedRecipe(**longer))}, 'saveRevision', 201)
+    before = api.service.store.state['publication_id']
+    stale = api.lan.post(path, json=body, headers=headers)
+    assert stale.status_code == 409 and 'changed' in stale.json()['detail']
+    assert api.service.store.state['publication_id'] == before
+    assert api.worker.run_once()
+    item = api.lan.get('/control/recipes').json()['items'][0]
+    assert item['page_count'] > 1
+    body = {'render_set_id':item['processing']['current_render_set_id'], 'page_number':2}
+    assert api.lan.post(path, json=body, headers=headers).status_code == 201
+    assert api.service.store.state['current']['page_number'] == 2
+    other, _ = api.ready()
+    wrong = api.lan.post('/control/recipes/' + other['recipe_id'] + '/send', json=body, headers=headers)
+    assert wrong.status_code == 409
+    api.db.execute('UPDATE recipes SET archived_at=? WHERE id=?',('2026-10-14',recipe['id']))
+    assert api.lan.post(path, json=body, headers=headers).status_code == 409
+    assert recipe['id'] not in [r['id'] for r in api.lan.get('/control/recipes').json()['items']]
+
+
+def test_dashboard_routes_and_control_boundaries(api):
+    for path, page in [('/', 'recipes'),('/settings', 'settings'),('/logs', 'logs')]:
+        for client in (api.lan, api.web):
+            response = client.get(path)
+            assert response.status_code == 200
+            assert f'data-page="{page}"' in response.text
+            assert 'Publish A' not in response.text and 'trial-start' not in response.text
+    assert api.web.get('/control/dashboard.js').status_code == 200
+    for path in ['/control/recipes', '/control/logs', '/settings', '/logs', '/control/dashboard.js']:
+        assert api.lan.get(path, headers={'Host':'evil.invalid'}).status_code == 403
+        assert api.web.get(path, headers={'Origin':'https://evil.invalid'}).status_code == 403
+    _, recipe = api.ready()
+    path = '/control/recipes/' + recipe['id'] + '/send'
+    body = {'render_set_id':recipe['processing']['current_render_set_id'], 'page_number':1}
+    for headers in [{}, {'X-eRecipe-Control':'1'}, {'Origin':'https://evil.invalid','X-eRecipe-Control':'1'}]:
+        assert api.web.post(path, json=body, headers=headers).status_code == 403
+    assert api.lan.post(path, json=body).status_code == 403
+    assert api.lan.get('/control/recipes?cursor=bad').status_code == 400
+
+
+def test_dashboard_logs_are_bounded_and_redacted(api):
+    store = api.service.store
+    for i in range(110): store.event('dashboard-check', sequence=i, api_key='hidden')
+    with store.events_path.open('a') as stream:
+        stream.write('{"broken":\n')
+    response = api.lan.get('/control/logs')
+    assert response.status_code == 200
+    items = response.json()['items']
+    assert len(items) == 100
+    assert items[0]['sequence'] == 109 and items[-1]['sequence'] == 10
+    assert all(item['api_key'] == '[REDACTED]' for item in items)
+    assert store.state['api_key'] not in response.text

@@ -20,6 +20,7 @@ from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, Response
 from pydantic import BaseModel, ConfigDict, Field
 from server.render import render, render_tap_trial
+from server.polling import NighttimePolling, polling_status
 
 # Official firmware maps GPIO/EXT0/EXT1 to these values. This is a wake
 # reason, not a gesture ID: hardware verification remains part of the trial.
@@ -106,6 +107,8 @@ class Store:
         if device_id:
             self.state["device_id"] = device_id.upper()
         self.state.setdefault("tap_trial", None)
+        self.state.setdefault("nighttime", NighttimePolling().model_dump())
+        self.state.setdefault("last_requested_poll_seconds", None)
         # Starting settings are used only for a new data directory. Controls persist thereafter.
         self.save()
         self.event("server_start", base_url=self.base_url)
@@ -268,6 +271,7 @@ class Store:
             self.state["last_checkin"] = stamp
             self.state["interval_baseline"] = stamp
             self.state["checkins"] += 1
+            self.state['last_requested_poll_seconds'] = polling_status(self.state, datetime.fromisoformat(stamp))['effective_poll_seconds']
             self.state["telemetry"] = {k: self.redact(v) for k, v in values.items() if k in TELEMETRY}
             charge, charge_source = battery_reading(values)
             if self.state["unplugged_at"]:
@@ -285,12 +289,14 @@ class Store:
                         self.state["charge_samples"] = samples[-1000:]
             self.save()
             self.event("checkin", telemetry=self.state["telemetry"],
+                       requested_poll_seconds=self.state['last_requested_poll_seconds'],
                        observed_interval_seconds=seconds(stamp, previous) if previous else None)
 
     def status(self):
         with self.lock:
             s = deepcopy(self.state)
         s.pop("api_key")
+        s.update(polling_status(s, datetime.fromisoformat(now())))
         s["base_url"] = self.base_url
         s["image_url"] = self.base_url + "/images/" + s["current"]["filename"]
         intervals = s["intervals"]
@@ -340,13 +346,19 @@ class Settings(BaseModel):
     model_config = ConfigDict(extra="forbid")
     mode: Literal["soak", "snapshot", "stress", "tap_trial"]
     poll_seconds: int = Field(ge=5, le=3600)
+    nighttime: NighttimePolling | None = None
 
 class Confirmation(BaseModel):
     publication_id: str
     observed_at: str | None = None
     note: str = Field(default="", max_length=1000)
 
-def create_app(directory, base_url, interval=20, device_id=None, *, store=None, control_guard=None):
+class RecipeSend(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    render_set_id: str = Field(pattern=r'^[a-f0-9]{32}$')
+    page_number: int = Field(ge=1, strict=True)
+
+def create_app(directory, base_url, interval=20, device_id=None, *, store=None, control_guard=None, service=None):
     store = store or Store(directory, base_url, interval, device_id)
     app = FastAPI(title="eRecipe BYOS stage 1")
     app.state.store = store
@@ -420,7 +432,7 @@ def create_app(directory, base_url, interval=20, device_id=None, *, store=None, 
             s = store.state
             result = {"status": 0, "filename": s["current"]["filename"],
                       "image_url": store.base_url + "/images/" + s["current"]["filename"],
-                      "refresh_rate": s["poll_seconds"], "reset_firmware": False,
+                      "refresh_rate": s["last_requested_poll_seconds"], "reset_firmware": False,
                       "update_firmware": False, "firmware_url": None, "firmware_version": None,
                       "special_function": "none", "temperature_profile": "default", "image_url_timeout": 0, "maximum_compatibility": False}
             if s["mode"] == "stress":
@@ -472,11 +484,53 @@ def create_app(directory, base_url, interval=20, device_id=None, *, store=None, 
         return FileResponse(store.assets / filename, media_type="image/png")
 
     @app.get("/", dependencies=[Depends(local)])
-    def dashboard():
+    @app.get("/settings", dependencies=[Depends(local)])
+    @app.get("/logs", dependencies=[Depends(local)])
+    def dashboard(request: Request):
         html = (ROOT / "dashboard.html").read_text()
-        if control_guard:
-            html = html.replace("<header>", '<p><a href="/admin">Users and phone enrollment</a></p><header>', 1)
+        html = html.replace('{{page}}', {'/settings':'settings','/logs':'logs'}.get(request.url.path,'recipes'))
+        html = html.replace('{{admin}}', '<a href="/admin">Users and phone enrollment →</a>' if control_guard else '')
         return HTMLResponse(html)
+
+    @app.get("/control/dashboard.js", dependencies=[Depends(local)])
+    def dashboard_script():
+        return FileResponse(ROOT / 'dashboard.js', media_type='text/javascript')
+
+    def recipe_command(operation, params, query, body):
+        if service is None:
+            raise HTTPException(503, 'Recipe library requires the integrated server. Start with python -m server.')
+        from server.recipes.db import Problem
+        try:
+            return service.execute(operation,params,query,body,None)[1]
+        except Problem as error:
+            raise HTTPException(error.status,str(error))
+
+    @app.get('/control/recipes', dependencies=[Depends(local)])
+    def recipes(cursor: str | None = None):
+        return recipe_command('dashboardRecipes',{},dict(limit=50,**({'cursor':cursor} if cursor else {})),None)
+
+    @app.post('/control/recipes/{recipe_id}/send', dependencies=[Depends(local)], status_code=201)
+    def send_recipe(recipe_id: str, body: RecipeSend):
+        return recipe_command('sendDashboardRecipe',{'recipe_id':recipe_id},{},body.model_dump())
+
+    @app.get('/control/logs', dependencies=[Depends(local)])
+    def recent_logs():
+        # Bound disk reads even after long-running device sessions. Discard a
+        # partial first line and tolerate a final line interrupted by a crash.
+        with store.lock:
+            if not store.events_path.exists():
+                return {'items':[]}
+            with store.events_path.open('rb') as source:
+                source.seek(0,2)
+                start=max(0,source.tell()-256*1024)
+                source.seek(start)
+                if start:source.readline()
+                lines=source.read().splitlines()
+            items=[]
+            for line in lines:
+                try:items.append(store.redact(json.loads(line)))
+                except (ValueError,UnicodeDecodeError):continue
+            return {'items':list(reversed(items[-100:]))}
 
     @app.get("/control/status", dependencies=[Depends(local)])
     def status():
@@ -542,15 +596,18 @@ def create_app(directory, base_url, interval=20, device_id=None, *, store=None, 
     @app.post("/control/settings", dependencies=[Depends(local)])
     def settings(body: Settings):
         with store.lock:
+            nighttime = body.nighttime.model_dump() if body.nighttime is not None else store.state['nighttime']
+            if nighttime['enabled'] and nighttime['poll_seconds'] < body.poll_seconds:
+                raise HTTPException(422, 'Nighttime interval must be at least the normal polling interval.')
             if body.mode == "tap_trial" and not store.state.get("tap_trial"):
                 raise HTTPException(409, "Start the two-page trial first")
-            if store.state["mode"] != body.mode or store.state["poll_seconds"] != body.poll_seconds:
+            if store.state["mode"] != body.mode or store.state["poll_seconds"] != body.poll_seconds or store.state['nighttime'] != nighttime:
                 store.event("experiment_boundary", next_mode=body.mode, next_poll_seconds=body.poll_seconds)
                 store.state.update(unplugged_at=None, charge_samples=[], intervals=[], interval_baseline=None)
             store.set_mode(body.mode)
-            store.state.update(poll_seconds=body.poll_seconds)
+            store.state.update(poll_seconds=body.poll_seconds, nighttime=nighttime)
             store.save()
-            store.event("settings")
+            store.event("settings", nighttime=nighttime)
         return store.status()
 
     @app.post("/control/tap-trial/start", dependencies=[Depends(local)])

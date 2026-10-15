@@ -66,7 +66,7 @@ The reader's advertised LAN image origin never becomes the QR/iOS origin. No Fun
 
 ## Connect an iPhone
 
-1. Open the Serve HTTPS dashboard and select **Users and phone enrollment** (or open `/admin`).
+1. Open the Serve HTTPS dashboard, then **Settings → Users and phone enrollment** (or open `/admin`).
 2. Create or select a user. All users share the same recipe library.
 3. Enter a device label and select **Create enrollment QR**.
 4. Scan the QR on a phone with the eRecipe app installed and Tailscale connected.

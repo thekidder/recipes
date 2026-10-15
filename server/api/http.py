@@ -93,7 +93,7 @@ def error_response(request,error):
 
 def create_web_app(service):
     ingress=Ingress(service.origin)
-    app=create_app(service.db.directory,service.store.base_url,store=service.store,control_guard=ingress)
+    app=create_app(service.db.directory,service.store.base_url,store=service.store,control_guard=ingress,service=service)
     app.state.service=service
     # Publish the reviewed document, not a second generated wire contract.
     app.router.routes=[r for r in app.router.routes if getattr(r,'path','') not in ('/openapi.json','/docs','/docs/oauth2-redirect','/redoc')]

@@ -44,7 +44,7 @@ class Service:
         return value
 
     def execute(self,operation,params,query,body,actor,*,key=None,files=None):
-        read=operation in {'getStatus','listRecipes','getRecipe','listRevisions','getRevision','listRecipeJobs','getJob',
+        read=operation in {'dashboardRecipes','getStatus','listRecipes','getRecipe','listRevisions','getRevision','listRecipeJobs','getJob',
             'listAttempts','listLlmCalls','getLlmCall','listSourceCaptures','getSourceCapture','listRenderSets','getRenderSet',
             'getDevice','listUsers','getUser','listCredentials','getEnrollment'}
         # Always acquire store before SQLite; firmware requests use the same order.
@@ -97,6 +97,12 @@ class Service:
 
     def command(self,op,p,b,actor,files):
         v=self.views; user=actor['id'] if actor else 'local'
+        if op=='sendDashboardRecipe':
+            recipe=self.active(p['recipe_id'])
+            render=v.record('render_sets',b['render_set_id'])
+            if render['revision_id']!=recipe['current_revision_id']:
+                raise ApiError('revision_conflict','This recipe changed. Refresh the library before sending it.',409)
+            return self.command('createPublication',{},b,actor,None)
         if op=='createUser':
             identifier=uid();self.db.execute('INSERT INTO users VALUES(?,?,?,NULL)',(identifier,self.name(b['display_name']),now()))
             return 201,v.admin_user(v.record('users',identifier)),'/control/v1/users/'+identifier
@@ -207,6 +213,14 @@ class Service:
 
     def read(self,op,p,q,actor):
         v=self.views
+        if op=='dashboardRecipes':
+            def summary(item):
+                recipe=v.recipe(item)
+                render=v.current_render(item['current_revision_id'])
+                recipe['page_count']=render['page_count'] if render else 0
+                return recipe
+            return 200,v.page('SELECT * FROM recipes WHERE archived_at IS NULL',(),summary,q,
+                              ['dashboardRecipes'],order='created_at'),None
         if op=='getStatus':
             configured=self.config.readiness()['configured']
             result=dict(api_version='1',contract_version=DOCUMENT['info']['version'],server_id=self.db.server_id,user=v.user(actor['id']),
