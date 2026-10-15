@@ -28,6 +28,10 @@ Uploaded bytes and manifest order are retained. The worker applies EXIF orientat
 
 ## Run one server process
 
+For an installed macOS login service with LAN and Tailscale HTTPS port **10000**,
+use [the automatic startup guide](MACOS_SERVICE.md). The manual examples below
+use the development defaults (reader 8000, application upstream 8001).
+
 Install dependencies from the project root:
 
 ```sh

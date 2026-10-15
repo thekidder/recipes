@@ -8,6 +8,11 @@ A single TRMNL X polls the LAN server, initially every **20 seconds**. The dashb
 
 ## Start
 
+For automatic startup at macOS login on **port 10000**, including Tailscale HTTPS
+on the same port, follow [the login service setup](docs/MACOS_SERVICE.md). It uses
+the installer in `server/scripts/install_launch_agent.py` and preserves the existing
+credentials and recipe library. The manual development commands below use port 8000.
+
 Requires Python **3.12+** on macOS or Linux. From the project root:
 
 ```sh
