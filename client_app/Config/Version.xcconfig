@@ -1,0 +1,4 @@
+// Shared by the app and Share extension. Increment the build for each upload.
+// The archive script can override CURRENT_PROJECT_VERSION without editing this file.
+MARKETING_VERSION = 1.0
+CURRENT_PROJECT_VERSION = 1

@@ -2,6 +2,62 @@
 
 A SwiftUI iPhone/iPad app and native Share extension, targeting iOS 17+. Open `eRecipe.xcodeproj` in Xcode. Client implementation lives in this directory; the application server is in `../server`.
 
+## Internal TestFlight
+
+Prepared October 14, 2026 with Xcode 27.0: version **1.0 (1)** archived successfully with signing, then exported using a cloud-managed Apple Distribution certificate for internal TestFlight only. The exported app and extension have matching App Group/Keychain entitlements, privacy manifests, and version numbers; the package passed strict code-signature verification. Local artifacts are `client_app/.build/testflight/eRecipe-1.xcarchive` and `client_app/.build/testflight/export-1/eRecipe.ipa` (ignored by Git). Nothing has been uploaded. App Store Connect processing and physical-device smoke checks remain. Use build **2** for the next archive, or upload the existing build 1.
+
+Release configuration uses these identifiers:
+
+| Component | Identifier |
+| --- | --- |
+| iOS app | `com.thekidder.recipes` |
+| Share extension | `com.thekidder.recipes.share` |
+| App Group (both targets) | `group.com.thekidder.recipes` |
+| Keychain group (both targets) | `$(AppIdentifierPrefix)com.thekidder.recipes.shared` |
+
+Changing from the old `com.example.erecipe` identifier installs a separate app with separate shared storage and credentials. Enroll the new app with a fresh dashboard QR. Pending shares and registration from the old app are not migrated.
+
+### Apple account setup
+
+1. Sign into Xcode with an Apple Account on an active paid Apple Developer team. Keep `DEVELOPMENT_TEAM` in ignored `Config/Local.xcconfig`; automatic signing is configured for both targets.
+2. Register the app and extension identifiers and the App Group under that team. Enable App Groups and Keychain Sharing on both targets, using the values above. Xcode automatic signing can manage signing certificates and provisioning profiles when the account has permission.
+3. In App Store Connect, create an iOS app record with bundle ID `com.thekidder.recipes`, your primary language, an available app name, and a unique SKU (for example `thekidder-recipes-ios`). Accept any pending developer agreements.
+
+### Archive and distribute
+
+Use the **eRecipe** scheme and a generic iOS device destination. **Product → Archive** uses Release. Both targets take their marketing version and build number from `Config/Version.xcconfig`; increment the build number before each upload.
+
+Alternatively, from the repository root, create a signed archive with an explicit build number:
+
+```sh
+client_app/Scripts/archive_testflight.sh 1
+```
+
+The script regenerates the project, lets Xcode update provisioning, and creates `client_app/.build/testflight/eRecipe-1.xcarchive`. It does not upload. Open that archive in Xcode Organizer and choose **Distribute App → TestFlight Internal Only**. This restricts the uploaded build to internal testing. Keep the selected build number when uploading, or let Organizer manage a higher one consistently for the app and extension.
+
+For a local App Store Connect export, `Config/TestFlightExportOptions.plist` sets automatic signing and `testFlightInternalTestingOnly = true`. Its destination is **export**, so this command also does not upload:
+
+```sh
+xcodebuild -exportArchive \
+  -archivePath client_app/.build/testflight/eRecipe-1.xcarchive \
+  -exportPath client_app/.build/testflight/export-1 \
+  -exportOptionsPlist client_app/Config/TestFlightExportOptions.plist \
+  -allowProvisioningUpdates
+```
+
+After an upload finishes processing, create an internal TestFlight group, add the build, fill in **What to Test**, and invite eligible App Store Connect users with access to the app. They install it using TestFlight. Internal testing does not require external beta review; each build expires after 90 days. See Apple's [internal testing guide](https://developer.apple.com/help/app-store-connect/test-a-beta-version/add-internal-testers/).
+
+### Release assets and declarations
+
+- `App/Assets.xcassets` contains an opaque 1024×1024 app icon. Xcode generates the device sizes. Regenerate the source drawing with `swift client_app/Scripts/generate_app_icon.swift` from the repository root.
+- The shared `PrivacyInfo.xcprivacy` is copied into both the app and extension. It declares account identifiers, submitted recipe photos, and other submitted recipe content linked to the server account, used for app functionality, without tracking. The current client has no direct use of Apple's required-reason APIs and no third-party SDKs. Reassess these declarations when changing client APIs, SDKs, or server processing; the server can send submitted recipe content to its configured model provider.
+- Both generated Info.plists set `ITSAppUsesNonExemptEncryption = false`: the client uses Apple's HTTPS and Keychain APIs, without bundled custom cryptography. See Apple's [encryption declaration guidance](https://developer.apple.com/documentation/security/complying-with-encryption-export-regulations).
+- The project generator preserves the icon, privacy manifest, signing overrides, and version configuration. Edit the generator when changing generated plists or project settings.
+
+### Tester setup and smoke check
+
+Install and connect Tailscale with permission to reach the application API, keep the server running at its HTTPS origin, and enroll the new app with a fresh QR from the dashboard. Verify a text share, recipe URL, and photo share, including dismissal of the Share extension followed by background processing and delivery to the reader. Also test disconnect/re-enrollment and a temporary network interruption. TestFlight distributes the app; it does not deploy the backend or grant tailnet access.
+
 ## Run the demo
 
 Choose the **eRecipe Demo** scheme and an iPhone simulator, then Run. The orange banner identifies demo mode. Tap **Paste recipe text**, enter some text, then **Share recipe**. The sheet closes as soon as the upload is accepted. The fixed Lemon chickpea salad fixture is processed and sent automatically; open Recent shares to inspect delivery. Launch with `--demo --demo-share` to exercise the extension’s shared-input screen without any button presses. No network service, model, or physical reader is contacted. Demo data is isolated from real registration and does not configure the Share extension.

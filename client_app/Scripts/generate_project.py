@@ -18,7 +18,7 @@ def settings(values): return '{' + ''.join(f'{key} = {quote(value)};' for key, v
 
 def plist(name, values):
     (root / name).write_bytes(plistlib.dumps(values, sort_keys=False))
-base = dict(CFBundleDevelopmentRegion='en', CFBundleExecutable='$(EXECUTABLE_NAME)', CFBundleIdentifier='$(PRODUCT_BUNDLE_IDENTIFIER)', CFBundleInfoDictionaryVersion='6.0', CFBundleName='$(PRODUCT_NAME)', CFBundleShortVersionString='1.0', CFBundleVersion='1', RecipeAppGroup='$(ERECIPE_APP_GROUP)', RecipeKeychainGroup='$(ERECIPE_KEYCHAIN_GROUP)')
+base = dict(CFBundleDevelopmentRegion='en', CFBundleExecutable='$(EXECUTABLE_NAME)', CFBundleIdentifier='$(PRODUCT_BUNDLE_IDENTIFIER)', CFBundleInfoDictionaryVersion='6.0', CFBundleName='$(PRODUCT_NAME)', CFBundleShortVersionString='$(MARKETING_VERSION)', CFBundleVersion='$(CURRENT_PROJECT_VERSION)', ITSAppUsesNonExemptEncryption=False, RecipeAppGroup='$(ERECIPE_APP_GROUP)', RecipeKeychainGroup='$(ERECIPE_KEYCHAIN_GROUP)')
 plist('App/Info.plist', dict(base, CFBundleDisplayName='eRecipe', CFBundlePackageType='APPL', LSRequiresIPhoneOS=True, UILaunchScreen={}, UIApplicationSceneManifest={'UIApplicationSupportsMultipleScenes': False}, CFBundleURLTypes=[{'CFBundleURLName': 'eRecipe enrollment', 'CFBundleURLSchemes': ['erecipe']}], UISupportedInterfaceOrientations=['UIInterfaceOrientationPortrait', 'UIInterfaceOrientationPortraitUpsideDown', 'UIInterfaceOrientationLandscapeLeft', 'UIInterfaceOrientationLandscapeRight']))
 plist('ShareExtension/Info.plist', dict(base, CFBundleDisplayName='eRecipe', CFBundlePackageType='XPC!', NSExtension={'NSExtensionPointIdentifier': 'com.apple.share-services', 'NSExtensionPrincipalClass': '$(PRODUCT_MODULE_NAME).ShareViewController', 'NSExtensionAttributes': {'NSExtensionActivationRule': {'NSExtensionActivationSupportsText': True, 'NSExtensionActivationSupportsWebURLWithMaxCount': 1, 'NSExtensionActivationSupportsImageWithMaxCount': 6, 'NSExtensionActivationSupportsFileWithMaxCount': 6}}}))
 for folder in ['App', 'ShareExtension']:
@@ -27,10 +27,12 @@ for folder in ['App', 'ShareExtension']:
 refs = {}
 for path in sorted(root.rglob('*')):
     if any(part.startswith('.') for part in path.relative_to(root).parts): continue
-    if path.suffix not in ['.swift', '.json', '.png', '.xcconfig', '.plist', '.entitlements']: continue
-    if path.parts[len(root.parts)] in ['Tests', 'UITests'] or path.name == 'Package.swift': continue
+    if any(parent.suffix == '.xcassets' for parent in path.parents): continue
+    if path.suffix not in ['.swift', '.json', '.png', '.xcconfig', '.plist', '.entitlements', '.xcassets', '.xcprivacy']: continue
+    if path.parts[len(root.parts)] in ['Tests', 'UITests', 'Scripts'] or path.name == 'Package.swift': continue
     rel = path.relative_to(root).as_posix()
-    kind = {'.swift':'sourcecode.swift', '.json':'text.json', '.png':'image.png', '.xcconfig':'text.xcconfig', '.plist':'text.plist.xml', '.entitlements':'text.plist.entitlements'}[path.suffix]
+    if rel == 'Config/Local.xcconfig': continue  # Optional include, never a machine-dependent project reference.
+    kind = {'.swift':'sourcecode.swift', '.json':'text.json', '.png':'image.png', '.xcconfig':'text.xcconfig', '.plist':'text.plist.xml', '.entitlements':'text.plist.entitlements', '.xcassets':'folder.assetcatalog', '.xcprivacy':'text.xml'}[path.suffix]
     refs[rel] = add('file:' + rel, f'{{isa = PBXFileReference; lastKnownFileType = {kind}; path = {quote(rel)}; sourceTree = "<group>";}}')
 products = {}
 for name, extension, kind in [('eRecipe', 'app', 'wrapper.application'), ('ShareExtension', 'appex', 'wrapper.app-extension'), ('eRecipeUITests', 'xctest', 'wrapper.cfbundle')]:
@@ -57,7 +59,7 @@ for name in products:
     extension = name == 'ShareExtension'
     folder = 'ShareExtension' if extension else 'App'
     sources = [ui_ref] if ui else [ref for path, ref in refs.items() if path.endswith('.swift') and (path.startswith(folder+'/') or path.startswith('Shared/'))]
-    resources = [] if ui else [ref for path, ref in refs.items() if path.startswith('Fixtures/')]
+    resources = [] if ui else [ref for path, ref in refs.items() if path.startswith('Fixtures/') or path == 'PrivacyInfo.xcprivacy' or (path.startswith(folder+'/') and path.endswith('.xcassets'))]
     phases = [phase(name+'sources','PBXSourcesBuildPhase',[buildfile(ref,name) for ref in sources]), phase(name+'resources','PBXResourcesBuildPhase',[buildfile(ref,name) for ref in resources]), phase(name+'frameworks','PBXFrameworksBuildPhase',[])]
     dependencies = []
     if name in ['eRecipe', 'eRecipeUITests']:
@@ -71,6 +73,7 @@ for name in products:
     if ui: values.update(TEST_TARGET_NAME='eRecipe')
     else: values.update(INFOPLIST_FILE=folder+'/Info.plist', CODE_SIGN_ENTITLEMENTS=folder+'/eRecipe.entitlements')
     if extension: values.update(APPLICATION_EXTENSION_API_ONLY='YES', SKIP_INSTALL='YES')
+    elif not ui: values.update(ASSETCATALOG_COMPILER_APPICON_NAME='AppIcon')
     config = configs(name, values)
     product_type = 'com.apple.product-type.bundle.ui-testing' if ui else 'com.apple.product-type.app-extension' if extension else 'com.apple.product-type.application'
     add('target:'+name, '{isa = PBXNativeTarget; buildConfigurationList = '+config+'; buildPhases = '+array(phases)+'; buildRules = (); dependencies = '+array(dependencies)+'; name = '+name+'; productName = '+name+'; productReference = '+products[name]+'; productType = '+quote(product_type)+';}')

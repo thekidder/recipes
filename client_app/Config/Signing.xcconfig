@@ -1,6 +1,7 @@
-// Change these identifiers to ones registered with your Apple Developer team.
-ERECIPE_BUNDLE_PREFIX = com.example.erecipe
-ERECIPE_APP_GROUP = group.com.example.erecipe
-ERECIPE_KEYCHAIN_GROUP = $(AppIdentifierPrefix)com.example.erecipe.shared
+// Register these identifiers and the shared App Group with your Apple Developer team.
+ERECIPE_BUNDLE_PREFIX = com.thekidder.recipes
+ERECIPE_APP_GROUP = group.com.thekidder.recipes
+ERECIPE_KEYCHAIN_GROUP = $(AppIdentifierPrefix)com.thekidder.recipes.shared
+#include "Version.xcconfig"
 // Set DEVELOPMENT_TEAM in untracked Local.xcconfig so regeneration preserves it.
 #include? "Local.xcconfig"
