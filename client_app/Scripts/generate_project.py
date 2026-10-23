@@ -20,7 +20,22 @@ def plist(name, values):
     (root / name).write_bytes(plistlib.dumps(values, sort_keys=False))
 base = dict(CFBundleDevelopmentRegion='en', CFBundleExecutable='$(EXECUTABLE_NAME)', CFBundleIdentifier='$(PRODUCT_BUNDLE_IDENTIFIER)', CFBundleInfoDictionaryVersion='6.0', CFBundleName='$(PRODUCT_NAME)', CFBundleShortVersionString='$(MARKETING_VERSION)', CFBundleVersion='$(CURRENT_PROJECT_VERSION)', ITSAppUsesNonExemptEncryption=False, RecipeAppGroup='$(ERECIPE_APP_GROUP)', RecipeKeychainGroup='$(ERECIPE_KEYCHAIN_GROUP)')
 plist('App/Info.plist', dict(base, CFBundleDisplayName='eRecipe', CFBundlePackageType='APPL', LSRequiresIPhoneOS=True, UILaunchScreen={}, UIApplicationSceneManifest={'UIApplicationSupportsMultipleScenes': False}, CFBundleURLTypes=[{'CFBundleURLName': 'eRecipe enrollment', 'CFBundleURLSchemes': ['erecipe']}], UISupportedInterfaceOrientations=['UIInterfaceOrientationPortrait', 'UIInterfaceOrientationPortraitUpsideDown', 'UIInterfaceOrientationLandscapeLeft', 'UIInterfaceOrientationLandscapeRight']))
-plist('ShareExtension/Info.plist', dict(base, CFBundleDisplayName='eRecipe', CFBundlePackageType='XPC!', NSExtension={'NSExtensionPointIdentifier': 'com.apple.share-services', 'NSExtensionPrincipalClass': '$(PRODUCT_MODULE_NAME).ShareViewController', 'NSExtensionAttributes': {'NSExtensionActivationRule': {'NSExtensionActivationSupportsText': True, 'NSExtensionActivationSupportsWebURLWithMaxCount': 1, 'NSExtensionActivationSupportsImageWithMaxCount': 6, 'NSExtensionActivationSupportsFileWithMaxCount': 6}}}))
+# Match a supported representation explicitly. Safari's Reader PDF provider can
+# advertise com.adobe.pdf without public.file-url, alongside other representations.
+# The loader validates exact combinations and sizes after the extension opens.
+share_activation_rule = '''
+extensionItems.@sum.attachments.@count > 0 AND
+extensionItems.@sum.attachments.@count <= 6 AND
+SUBQUERY(extensionItems, $item,
+    SUBQUERY($item.attachments, $attachment,
+        ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "com.adobe.pdf" OR
+        ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "public.url" OR
+        ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "public.plain-text" OR
+        ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "public.image"
+    ).@count == $item.attachments.@count
+).@count == extensionItems.@count
+'''.strip()
+plist('ShareExtension/Info.plist', dict(base, CFBundleDisplayName='eRecipe', CFBundlePackageType='XPC!', NSExtension={'NSExtensionPointIdentifier': 'com.apple.share-services', 'NSExtensionPrincipalClass': '$(PRODUCT_MODULE_NAME).ShareViewController', 'NSExtensionAttributes': {'NSExtensionActivationRule': share_activation_rule}}))
 for folder in ['App', 'ShareExtension']:
     plist(f'{folder}/eRecipe.entitlements', {'com.apple.security.application-groups': ['$(ERECIPE_APP_GROUP)'], 'keychain-access-groups': ['$(ERECIPE_KEYCHAIN_GROUP)']})
 
