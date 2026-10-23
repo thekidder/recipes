@@ -197,15 +197,15 @@ Prompt `recipe-extraction-v5` retains website recipe identification and conflict
 
 Rendering uses Pillow and the project's existing font selector (`ERECIPE_FONT` when supplied). Cache keys include revision identity/content hash, renderer version, font bytes hash, Pillow version, dimensions/encoding, and effective preferences. No unit conversion or custom profile is supported yet. Render sets are committed only after complete pages exist. Missing/corrupt cached PNG bytes are regenerated without an LLM call and must match the original content hash. A changed renderer/font requires a new profile/version rather than rewriting immutable render metadata.
 
-Renderer `erecipe-pillow-v5` measures the complete document against three static layouts, largest first. It chooses the first layout that fits one 1872 × 1404 screen. If none fits, every page uses condensed typography; it never reduces text below that preset or removes recipe content.
+Renderer `erecipe-pillow-v6` measures the complete document against three static layouts, largest first. It chooses the first layout that fits one 1872 × 1404 screen. If none fits, every page uses condensed typography; it never reduces text below that preset or removes recipe content.
 
 | Layout | Body / line height | Item gap | Margin | Ingredient width / column gap |
 | --- | --- | --- | --- | --- |
-| Large print | 44 / 53 px | 12 px | 48 px | 600 / 56 px |
-| Normal | 30 / 36 px | 4 px | 36 px | 520 / 32 px |
-| Condensed | 26 / 31 px | 4 px | 36 px | 500 / 32 px |
+| Large print | 44 / 53 px | 12 px | 48 px | 760 / 56 px |
+| Normal | 30 / 36 px | 4 px | 36 px | 700 / 32 px |
+| Condensed | 26 / 31 px | 4 px | 36 px | 680 / 32 px |
 
-These are native image pixels, calibrated with the current saved recipes and the local font, not TRMNL CSS sizes. On October 14, 2026, cucumber salad, Basic Tehina Sauce, and Masabacha selected large print; tomato risotto selected normal; Really Awesome Black Bean Burgers selected condensed. All five fit one page with their complete saved text. The black bean recipe is retained as `server/fixtures/black-bean-burgers.formatted.md` for regression coverage alongside the chicken tacos fixture.
+These are native image pixels, calibrated with saved recipes and the local font, not TRMNL CSS sizes. The wider ingredient columns in v6 let Super-Simple Tangy Buttermilk Coleslaw select large print instead of normal without changing its text. Cucumber salad, Basic Tehina Sauce, and Masabacha still select large print. Narrower method columns can require a smaller preset or extra pages: tomato risotto now selects condensed, and the black bean burger fixture takes two condensed pages. The black bean recipe is retained as `server/fixtures/black-bean-burgers.formatted.md` for regression coverage alongside the chicken tacos fixture. Existing cached images remain unchanged until a new render is requested; v6 uses a distinct cache identity.
 
 The design draws on the official [TRMNL rich-text guidance](https://trmnl.com/framework/docs/3.4/rich_text) (left alignment and approximately 1.2 line height), [text scaling](https://trmnl.com/framework/docs/3.4/text_scale) (explicit typography tiers independent of geometry), and [TRMNL X guide](https://trmnl.com/framework/docs/3.4/trmnl_x_guide) (larger, denser screens need deliberate sizing). This remains a native Pillow renderer with scalable fonts and one-bit output, rather than a TRMNL HTML/CSS renderer. The exact sizes are application defaults; test at actual cooking distance on the reader before treating them as physically validated.
 

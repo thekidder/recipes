@@ -58,10 +58,10 @@ def assert_bounds(plan):
             assert right <= renderer.WIDTH-margin+1 and bottom <= renderer.HEIGHT-margin+1
 
 
-def test_black_bean_recipe_fits_condensed_without_text_changes():
+def test_black_bean_recipe_paginates_condensed_without_text_changes():
     md = Path('server/fixtures/black-bean-burgers.formatted.md').read_text()
     plan = renderer.layout_document(md)
-    assert plan.layout == 'condensed' and len(plan.pages) == 1
+    assert plan.layout == 'condensed' and len(plan.pages) == 2
     assert_content(plan, parse_markdown(md))
     assert_bounds(plan)
     pages = renderer.render_pages(md, plan=plan)
@@ -70,13 +70,14 @@ def test_black_bean_recipe_fits_condensed_without_text_changes():
     assert renderer.render_pages(md) == pages
 
 
-def test_selects_largest_fitting_static_layout():
+@pytest.mark.parametrize('step_count,expected_layout', [(15, 'normal'), (18, 'condensed')])
+def test_selects_largest_fitting_static_layout(step_count, expected_layout):
     assert renderer.layout_document(markdown(RECIPE)).layout == 'large-print'
     recipe = deepcopy(RECIPE)
-    recipe['method'][0]['items'] = [f'Step {i}: Stir the vegetables gently for two minutes, then remove the pan from the heat.' for i in range(18)]
+    recipe['method'][0]['items'] = [f'Step {i}: Stir the vegetables gently for two minutes, then remove the pan from the heat.' for i in range(step_count)]
     md = markdown(recipe)
     plan = renderer.layout_document(md)
-    assert plan.layout == 'normal' and len(plan.pages) == 1
+    assert plan.layout == expected_layout and len(plan.pages) == 1
     assert_content(plan, parse_markdown(md))
     assert_bounds(plan)
 

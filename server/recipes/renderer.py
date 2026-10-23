@@ -9,7 +9,7 @@ from server.render import font
 from .db import digest, dumps
 from .document import RecipeError, parse_markdown
 
-VERSION = "erecipe-pillow-v5"
+VERSION = "erecipe-pillow-v6"
 WIDTH, HEIGHT = 1872, 1404
 
 
@@ -29,9 +29,9 @@ class Layout:
 
 # Fixed presets, in selection order. Never shrink below condensed.
 LAYOUTS = (
-    Layout("large-print", 44, 9, 12, 48, 600, 56, 56, 32, 32),
-    Layout("normal", 30, 6, 4, 36, 520, 32, 48, 26, 27),
-    Layout("condensed", 26, 5, 4, 36, 500, 32, 42, 24, 24),
+    Layout("large-print", 44, 9, 12, 48, 760, 56, 56, 32, 32),
+    Layout("normal", 30, 6, 4, 36, 700, 32, 48, 26, 27),
+    Layout("condensed", 26, 5, 4, 36, 680, 32, 42, 24, 24),
 )
 
 
