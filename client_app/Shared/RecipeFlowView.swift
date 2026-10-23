@@ -19,6 +19,12 @@ struct RecipeFlowView: View {
             VStack(alignment: .leading, spacing: 18) {
                 if let item {
                     Text(item.revision?.title ?? "Your recipe").font(.title2.bold())
+                    if let recipeID = item.recipeId {
+                        NavigationLink {
+                            RecipeDetailView(environment: environment, recipeID: recipeID)
+                        } label: { Label("Read recipe", systemImage: "book") }
+                        .buttonStyle(.borderedProminent)
+                    }
                     Text(item.summary).font(.subheadline).foregroundStyle(.secondary).lineLimit(3)
                     if item.renderSet == nil {
                         Label(item.message ?? "Preparing recipe…", systemImage: item.phase == "failed" ? "exclamationmark.triangle" : "clock")

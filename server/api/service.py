@@ -151,6 +151,9 @@ class Service:
                 job=self.processing.submit_url(b['url'],user=user,key='api:'+uid())
             elif b['kind']=='text':
                 job=self.processing.submit_text(b['text'],user=user,key='api:'+uid())
+            elif b['kind']=='pdf':
+                filename,data,_=files[0]
+                job=self.processing.submit_pdf(filename,data,user=user,key='api:'+uid())
             else:
                 assets=[('original_image',i,self.db.asset(data,mime),filename) for i,(filename,data,mime) in enumerate(files)]
                 job=self.db.submit(user,'api:'+uid(),'images',digest(dumps([(a[2],a[3]) for a in assets]).encode()),assets)
@@ -224,7 +227,7 @@ class Service:
         if op=='getStatus':
             configured=self.config.readiness()['configured']
             result=dict(api_version='1',contract_version=DOCUMENT['info']['version'],server_id=self.db.server_id,user=v.user(actor['id']),
-                capabilities=dict(import_kinds=['text','images','url'],source_refresh=True,publication=True,archive=True,render_profile_ids=[PROFILE['id']],limits=LIMITS),
+                capabilities=dict(import_kinds=['text','images','url','pdf'],source_refresh=True,publication=True,archive=True,render_profile_ids=[PROFILE['id']],limits=LIMITS),
                 readiness=dict(worker='ready' if self.worker_ready else 'unavailable',extraction='ready' if configured else 'not_configured',rendering='ready',
                                issues=[] if configured else [dict(code='configuration_missing',message=self.config.configuration_issue,retryable=True,
                                                                  details=dict(provider=self.config.provider,model=self.config.model))]))

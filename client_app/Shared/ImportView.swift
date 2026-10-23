@@ -45,7 +45,7 @@ struct ImportView: View {
                         else if let initialInput { Text(initialInput.summary).lineLimit(8) }
                         else if entryKind == "url" {
                             TextField("https://example.com/recipe", text: $text).keyboardType(.URL).textInputAutocapitalization(.never).autocorrectionDisabled().accessibilityLabel("Recipe URL")
-                            Text("Paste a public recipe page. It will be fetched, processed, and sent automatically.").font(.footnote).foregroundStyle(.secondary)
+                            Text("Paste a public recipe page. If the site blocks downloads, share a Reader PDF from Safari instead.").font(.footnote).foregroundStyle(.secondary)
                         }
                         else { TextEditor(text: $text).frame(minHeight: 200).accessibilityLabel("Recipe text") }
                     }

@@ -4,7 +4,78 @@ final class FlowTests: XCTestCase {
     private func launch(_ app: XCUIApplication) {
         app.launchArguments.append("--demo-reset")
         app.launch()
+        if !app.launchArguments.contains(where: { ["--demo-share", "--demo-image-share", "--demo-url-share"].contains($0) }) {
+            app.tabBars.buttons["Add & activity"].tap()
+        }
     }
+    func testLibrarySearchReadAndDelete() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--demo"]
+        launch(app)
+        app.tabBars.buttons["Recipes"].tap()
+        let recipe = app.buttons["library-recipe-recipe_salad"]
+        XCTAssertTrue(recipe.waitForExistence(timeout: 10))
+        screenshot("Recipe library")
+        let search = app.searchFields.firstMatch
+        search.tap(); search.typeText("no matching recipe")
+        XCTAssertFalse(recipe.exists)
+        app.buttons["Clear text"].tap()
+        if app.buttons["Close"].exists { app.buttons["Close"].tap() }
+        else { app.buttons["Cancel"].tap() }
+        recipe.tap()
+        XCTAssertTrue(app.staticTexts["recipe-title"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Ingredients"].exists)
+        let ingredient = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "2 cans chickpeas")).firstMatch
+        ingredient.tap()
+        XCTAssertEqual(ingredient.value as? String, "Checked")
+        screenshot("Mobile recipe")
+        app.navigationBars.buttons.firstMatch.tap()
+        recipe.swipeLeft()
+        app.buttons["Delete"].tap()
+        app.buttons["Cancel"].tap()
+        XCTAssertTrue(recipe.exists)
+        recipe.swipeLeft()
+        app.buttons["Delete"].tap()
+        app.buttons["Delete recipe"].tap()
+        XCTAssertTrue(app.staticTexts["Your recipe collection starts here"].waitForExistence(timeout: 10))
+        XCTAssertFalse(recipe.exists)
+        app.tabBars.buttons["Add & activity"].tap()
+        app.tabBars.buttons["Recipes"].tap()
+        XCTAssertTrue(app.staticTexts["Your recipe collection starts here"].waitForExistence(timeout: 10))
+    }
+
+    func testRecipeSupportsAccessibilityTextSize() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--demo", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
+        launch(app)
+        app.tabBars.buttons["Recipes"].tap()
+        let recipe = app.buttons["library-recipe-recipe_salad"]
+        XCTAssertTrue(recipe.waitForExistence(timeout: 10)); recipe.tap()
+        XCTAssertTrue(app.staticTexts["recipe-title"].waitForExistence(timeout: 10))
+        screenshot("Recipe with accessibility text")
+        let lastStep = app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Serve chilled.")).firstMatch
+        for _ in 0..<5 {
+            if lastStep.isHittable { break }
+            app.swipeUp()
+        }
+        XCTAssertTrue(lastStep.isHittable)
+    }
+
+    func testFailedDeleteKeepsRecipe() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--demo", "--demo-delete-failure"]
+        launch(app)
+        app.tabBars.buttons["Recipes"].tap()
+        let recipe = app.buttons["library-recipe-recipe_salad"]
+        XCTAssertTrue(recipe.waitForExistence(timeout: 10))
+        recipe.swipeLeft()
+        app.buttons["Delete"].tap()
+        app.buttons["Delete recipe"].tap()
+        XCTAssertTrue(app.alerts["Couldn’t delete recipe"].waitForExistence(timeout: 10))
+        app.buttons["OK"].tap()
+        XCTAssertTrue(recipe.exists)
+    }
+
     func testSharedURLUsesAutomaticDelivery() {
         let app = XCUIApplication()
         app.launchArguments = ["--demo", "--demo-url-share"]

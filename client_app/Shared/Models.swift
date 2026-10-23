@@ -27,6 +27,8 @@ struct ImportLimits: Codable {
     let multipartBodyBytes: Int
     let imagePixels: Int
     let imageMediaTypes: [String]
+    var pdfFileBytes: Int? = nil
+    var pdfPages: Int? = nil
 }
 struct Capabilities: Codable {
     let importKinds: [String]
@@ -72,7 +74,7 @@ struct Job: Codable {
     let downstreamJobIds: [String]
     var sourceCaptureId: String? = nil
 }
-struct Revision: Codable { let id: String; let title: String; let warnings: [String] }
+struct Revision: Codable { let id: String; let title: String; let warnings: [String]; var markdown: String? = nil }
 struct Asset: Codable { let id: String; let href: String; let mediaType: String; let byteSize: Int }
 struct RenderPage: Codable, Identifiable { let pageNumber: Int; let asset: Asset; var id: Int { pageNumber } }
 struct RenderSet: Codable { let id: String; let revisionId: String; let pageCount: Int; let pages: [RenderPage] }
@@ -81,11 +83,21 @@ struct PublicationReceipt: Codable { let status: String; let publication: Public
 struct Device: Decodable { let paired: Bool; let selectedPublication: Publication?; let selectedAssetFetchedAt: String? }
 
 struct ImageInput: Codable { let filename: String; let mediaType: String; let data: Data }
+struct PDFInput: Codable {
+    static let maxBytes = 20 * 1024 * 1024
+    let filename: String
+    let data: Data
+    func validate(maxBytes: Int = PDFInput.maxBytes) throws {
+        guard data.count <= maxBytes else { throw ClientError("The PDF exceeds the upload size limit.") }
+        guard data.starts(with: Data("%PDF-".utf8)) else { throw ClientError("The shared file is not a PDF. Share Safari's Reader PDF or a PDF from Files.") }
+    }
+}
 struct ShareInput: Codable {
     let kind: String
     var text: String? = nil
     var url: String? = nil
     var images: [ImageInput] = []
+    var pdf: PDFInput? = nil
     static func fromText(_ text: String) -> ShareInput {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         if let parts = URLComponents(string: trimmed), ["http", "https"].contains(parts.scheme?.lowercased() ?? ""),
@@ -98,6 +110,7 @@ struct ShareInput: Codable {
         switch kind {
         case "url": return url ?? "Website"
         case "images": return "\(images.count) recipe photo\(images.count == 1 ? "" : "s")"
+        case "pdf": return pdf?.filename ?? "Recipe PDF"
         default: return String((text ?? "Recipe").prefix(100))
         }
     }
@@ -121,28 +134,36 @@ struct ShareInput: Codable {
             guard data.count <= limits.jsonBodyBytes else { throw ClientError("The URL exceeds the upload limit.") }
             return (data, "application/json")
         }
-        guard kind == "images", !images.isEmpty, images.count <= limits.imageCount else {
-            throw ClientError("Share up to \(limits.imageCount) JPEG or PNG images.")
+        var files: [(name: String, file: ImageInput)] = []
+        if kind == "pdf" {
+            guard let pdf, let maxBytes = limits.pdfFileBytes else { throw ClientError("This server does not support PDF imports yet.") }
+            try pdf.validate(maxBytes: min(maxBytes, PDFInput.maxBytes))
+            files = [("pdf", ImageInput(filename: pdf.filename, mediaType: "application/pdf", data: pdf.data))]
+        } else {
+            guard kind == "images", !images.isEmpty, images.count <= limits.imageCount else {
+                throw ClientError("Share up to \(limits.imageCount) JPEG or PNG images.")
+            }
+            guard images.allSatisfy({ limits.imageMediaTypes.contains($0.mediaType) && $0.data.count <= limits.imageFileBytes }),
+                  images.reduce(0, { $0 + $1.data.count }) <= limits.imageTotalBytes else {
+                throw ClientError("Images exceed the server's file size or media type limits.")
+            }
+            for image in images { try ImagePreparation.validate(image, pixelLimit: limits.imagePixels) }
+            files = images.enumerated().map { ("image_\($0.offset + 1)", $0.element) }
         }
-        guard images.allSatisfy({ limits.imageMediaTypes.contains($0.mediaType) && $0.data.count <= limits.imageFileBytes }),
-              images.reduce(0, { $0 + $1.data.count }) <= limits.imageTotalBytes else {
-            throw ClientError("Images exceed the server's file size or media type limits.")
-        }
-        for image in images { try ImagePreparation.validate(image, pixelLimit: limits.imagePixels) }
         let boundary = "eRecipe-\(UUID().uuidString)"
-        let metadata: [String: Any] = ["kind": "images", "attachments": images.enumerated().map { i, image in
-            ["part_name": "image_\(i + 1)", "filename": image.filename]
+        let metadata: [String: Any] = ["kind": kind, "attachments": files.map { part in
+            ["part_name": part.name, "filename": String(part.file.filename.prefix(255))]
         }]
         let manifest = try JSONSerialization.data(withJSONObject: metadata)
-        guard manifest.count <= 16_384 else { throw ClientError("Image metadata is too large.") }
+        guard manifest.count <= 16_384 else { throw ClientError("File metadata is too large.") }
         var body = Data()
         func append(_ string: String) { body.append(Data(string.utf8)) }
         append("--\(boundary)\r\nContent-Disposition: form-data; name=\"metadata\"\r\nContent-Type: application/json\r\n\r\n")
         body.append(manifest)
-        for (i, image) in images.enumerated() {
+        for (name, file) in files {
             // Transport names are fixed; the original display name lives in the JSON manifest.
-            append("\r\n--\(boundary)\r\nContent-Disposition: form-data; name=\"image_\(i + 1)\"; filename=\"image_\(i + 1)\"\r\nContent-Type: \(image.mediaType)\r\n\r\n")
-            body.append(image.data)
+            append("\r\n--\(boundary)\r\nContent-Disposition: form-data; name=\"\(name)\"; filename=\"\(name)\"\r\nContent-Type: \(file.mediaType)\r\n\r\n")
+            body.append(file.data)
         }
         append("\r\n--\(boundary)--\r\n")
         guard body.count <= limits.multipartBodyBytes else { throw ClientError("The combined upload is too large.") }

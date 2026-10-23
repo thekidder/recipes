@@ -429,12 +429,12 @@ def test_render_cache_repairs_files_without_an_llm(library, damage):
 def test_version_one_database_migrates_without_losing_jobs(tmp_path):
     schema = Path(__file__).resolve().parents[1].joinpath("recipes/schema.sql").read_text()
     with sqlite3.connect(tmp_path / "recipes.sqlite3") as c:
-        c.executescript(schema.replace("    parent_job_id TEXT REFERENCES jobs(id),\n", ""))
+        c.executescript(schema.replace("    parent_job_id TEXT REFERENCES jobs(id),\n", "").replace("'url','pdf'", "'url'"))
         c.execute("INSERT INTO users VALUES ('existing','Existing','2026-01-01',NULL)")
         c.execute("INSERT INTO schema_versions VALUES (1,'2026-01-01')")
     library = Library(tmp_path)
     assert library.one("SELECT display_name FROM users WHERE id='existing'")["display_name"] == "Existing"
-    assert library.one("SELECT max(version) AS version FROM schema_versions")["version"] == 2
+    assert library.one("SELECT max(version) AS version FROM schema_versions")["version"] == 3
     assert "parent_job_id" in [r["name"] for r in library.all("PRAGMA table_info(jobs)")]
     finish(library)
 

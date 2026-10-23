@@ -37,6 +37,104 @@ final class CoreTests: XCTestCase {
         let config = URLSessionConfiguration.ephemeral; config.protocolClasses = [StubProtocol.self]
         return APIClient(origin: connection.origin, token: "test-token", session: URLSession(configuration: config))
     }
+    func testLibraryFollowsPaginationAndEncodesCursor() async throws {
+        var calls = 0
+        StubProtocol.handler = { request in
+            calls += 1
+            let query = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)!.queryItems!
+            XCTAssertEqual(query.first { $0.name == "visibility" }?.value, "active")
+            var page = try JSONSerialization.jsonObject(with: self.fixture("library")) as! [String: Any]
+            if calls == 1 {
+                page["has_more"] = true; page["next_cursor"] = "a+b/=c"
+            } else {
+                XCTAssertEqual(query.first { $0.name == "cursor" }?.value, "a+b/=c")
+                var item = (page["items"] as! [[String: Any]])[0]
+                item["id"] = "recipe_second"; page["items"] = [item]
+            }
+            return (200, try JSONSerialization.data(withJSONObject: page))
+        }
+        let recipes = try await api().recipes()
+        XCTAssertEqual(recipes.map(\.id), ["recipe_salad", "recipe_second"])
+        XCTAssertEqual(calls, 2)
+    }
+    func testLibraryRejectsBrokenPagination() async throws {
+        StubProtocol.handler = { _ in
+            var page = try JSONSerialization.jsonObject(with: self.fixture("library")) as! [String: Any]
+            page["has_more"] = true
+            return (200, try JSONSerialization.data(withJSONObject: page))
+        }
+        do { _ = try await api().recipes(); XCTFail("Must not silently return a partial library") } catch {}
+    }
+    func testArchiveUsesVersionAndReusableIdempotencyKey() async throws {
+        let recipe = try Wire.decoder.decode(RecipeSummary.self, from: fixture("ready_recipe"))
+        var calls = 0
+        StubProtocol.handler = { request in
+            calls += 1
+            XCTAssertEqual(request.url?.path, "/api/v1/recipes/recipe_salad/archive")
+            XCTAssertEqual(request.httpMethod, "POST")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Idempotency-Key"), "stable-delete-key")
+            var data = request.httpBody ?? Data()
+            if let stream = request.httpBodyStream {
+                stream.open(); defer { stream.close() }
+                var bytes = [UInt8](repeating: 0, count: 1024)
+                while stream.hasBytesAvailable {
+                    let count = stream.read(&bytes, maxLength: bytes.count)
+                    guard count > 0 else { break }
+                    data.append(contentsOf: bytes.prefix(count))
+                }
+            }
+            let body = try JSONSerialization.jsonObject(with: data) as! [String: Int]
+            XCTAssertEqual(body["expected_lock_version"], 1)
+            if calls == 1 { throw URLError(.networkConnectionLost) }
+            return (200, try self.fixture("archived"))
+        }
+        let client = api()
+        do { try await client.archive(recipe, key: "stable-delete-key"); XCTFail("Expected lost response") } catch {}
+        try await client.archive(recipe, key: "stable-delete-key")
+        XCTAssertEqual(calls, 2)
+        XCTAssertEqual(recipe.lockVersion, 1)
+    }
+    func testFormattedRecipeSeparatesMetadataAndContent() throws {
+        let recipe = try Wire.decoder.decode(RecipeSummary.self, from: fixture("ready_recipe"))
+        let document = RecipeDocument(markdown: try XCTUnwrap(recipe.currentRevision?.markdown))
+        XCTAssertEqual(document.metadata["servings"], "4")
+        XCTAssertEqual(document.blocks.map(\.text), ["Ingredients", "2 cans chickpeas, drained", "2 tbsp lemon juice", "Method", "Mix the chickpeas with lemon juice.", "Serve chilled."])
+        XCTAssertEqual(document.blocks.last?.kind, .step(2))
+    }
+    func testFormattedRecipeAcceptsCommonMarkSectionHeadings() {
+        let document = RecipeDocument(markdown: "Ingredients\n---\n- Salt\n## Method ##\n1. Stir.")
+        XCTAssertEqual(document.blocks.map(\.text), ["Ingredients", "Salt", "Method", "Stir."])
+        XCTAssertEqual(document.blocks[1].kind, .ingredient)
+    }
+    func testFormattedRecipeGroupsContinuationsAndNotes() {
+        let document = RecipeDocument(markdown: """
+        ---
+        title: 'Grandma''s salad'
+        servings: "4–6"
+        footer: A long attribution that
+          wraps onto another line
+        ---
+        ## Ingredients
+        ### Dressing
+        * **2 tbsp** oil,
+          plus more to serve
+        ## Method
+        ### Mix
+        1) Stir well.
+        ### Finish
+        1. Serve chilled.
+        ## Notes
+        Keeps for two days.
+
+        Best served cold.
+        """)
+        XCTAssertEqual(document.metadata["title"], "Grandma's salad")
+        XCTAssertEqual(document.metadata["footer"], "A long attribution that wraps onto another line")
+        XCTAssertTrue(document.blocks.contains { $0.text == "**2 tbsp** oil, plus more to serve" && $0.kind == .ingredient })
+        XCTAssertTrue(document.blocks.contains { $0.text == "Serve chilled." && $0.kind == .step(2) })
+        XCTAssertEqual(document.blocks.suffix(2).map(\.text), ["Keeps for two days.", "Best served cold."])
+    }
+
     func testEnrollmentValidation() throws {
         var parts = URLComponents(); parts.scheme = "erecipe"; parts.host = "enroll"
         parts.queryItems = [URLQueryItem(name: "v", value: "1"), URLQueryItem(name: "server", value: connection.origin.absoluteString), URLQueryItem(name: "code", value: String(repeating: "A", count: 43))]

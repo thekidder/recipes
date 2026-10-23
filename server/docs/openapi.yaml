@@ -2,8 +2,8 @@ openapi: 3.1.0
 info:
   title: eRecipe application and dashboard administration API
   version: 1.0.0
-  description: Authoritative wire contract, October 13, 2026. Server implementation supports text and image imports;
-    URL acquisition remains capability-gated and unavailable. Supersedes the seed API in PHASE2_HANDOFF.md for wire shapes; product invariants remain. Paths include
+  description: Authoritative wire contract, October 22, 2026. Server implementation supports text, image, URL and Reader PDF imports.
+    PDF uploads preserve the downloaded document and never fetch a website. Supersedes the seed API in PHASE2_HANDOFF.md for wire shapes; product invariants remain. Paths include
     prefixes; application origin is configured separately from the reader LAN origin. No OpenAI keys, firmware credentials,
     lease tokens, storage paths or token hashes appear in these DTOs.
 servers:
@@ -58,7 +58,9 @@ x-contract:
     URL <=8192 scalars. Non-whitespace text, nonblank single-line names. Reject content-encoded request bodies (415)
     in v1. Image capability: 6 still JPEG/PNG images, <=10 MiB/file, <=30 MiB summed files, multipart <=31
     MiB incl metadata/headers, metadata <=16 KiB, <=20 million decoded pixels per file. Signature must match declared
-    type; animated PNG, HEIC, GIF, PDF and SVG unsupported (415 unsupported_media_type). Validate bounds before
+    type; animated PNG, HEIC, GIF and SVG unsupported (415 unsupported_media_type).
+    PDF capability: one application/pdf file <=20 MiB; <=50 pages and <=400000 bytes of extracted text.
+    Preserve the original PDF; extraction is asynchronous and never fetches website links. Validate bounds before
     expensive decode; preserve originals before normalization. Capability advertised only when bounded validation/normalization
     exist. Values returned in status match these constants.'
   errors: Every non-2xx except 304 has Error envelope, including framework validation/404/405/500. Codes are extensible
@@ -426,10 +428,14 @@ paths:
               $ref: '#/components/schemas/JsonImport'
           multipart/form-data:
             schema:
-              $ref: '#/components/schemas/ImageImport'
+              oneOf:
+              - $ref: '#/components/schemas/ImageImport'
+              - $ref: '#/components/schemas/PdfImport'
             encoding:
               metadata:
                 contentType: application/json
+              pdf:
+                contentType: application/pdf
               image_1:
                 contentType: image/jpeg, image/png
               image_2:
@@ -3466,6 +3472,12 @@ components:
         multipart_body_bytes:
           type: integer
           const: 32505856
+        pdf_file_bytes:
+          type: integer
+          const: 20971520
+        pdf_pages:
+          type: integer
+          const: 50
         image_pixels:
           type: integer
           const: 20000000
@@ -3500,6 +3512,7 @@ components:
             - text
             - url
             - images
+            - pdf
           uniqueItems: true
         source_refresh:
           type: boolean
@@ -3693,6 +3706,45 @@ components:
       additionalProperties: false
       description: Multipart metadata is application/json. Files are image/jpeg or image/png; no duplicate, missing,
         unlisted, or additional parts. Metadata order wins over transport order.
+    PdfMetadata:
+      type: object
+      properties:
+        kind:
+          type: string
+          const: pdf
+        attachments:
+          type: array
+          minItems: 1
+          maxItems: 1
+          items:
+            type: object
+            properties:
+              part_name:
+                type: string
+                const: pdf
+              filename:
+                type: string
+                minLength: 1
+                maxLength: 255
+                description: Display name only; never a filesystem path.
+            required: [part_name, filename]
+            additionalProperties: false
+      required: [kind, attachments]
+      additionalProperties: false
+    PdfImport:
+      type: object
+      properties:
+        metadata:
+          $ref: '#/components/schemas/PdfMetadata'
+        pdf:
+          type: string
+          format: binary
+      required: [metadata, pdf]
+      additionalProperties: false
+      description: One application/pdf file, at most 20 MiB, with application/json metadata.
+        The original is preserved. Text extraction runs asynchronously with a 50-page and
+        400000-byte evidence limit. Encrypted, malformed, or textless PDFs fail the job
+        with an actionable error. No URL is fetched and no OCR is performed.
     ImportAccepted:
       type: object
       properties:
@@ -3752,6 +3804,7 @@ components:
           enum:
           - original_text
           - original_image
+          - original_pdf
           - processed_image
           - response_html
           - rendered_dom_html
@@ -3801,6 +3854,7 @@ components:
           - text
           - url
           - images
+          - pdf
         submitted_url:
           anyOf:
           - type: string

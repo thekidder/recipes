@@ -46,12 +46,13 @@ def multipart(content_type,body):
         disposition,options=parse_options_header(part['headers'].get(b'content-disposition',b''))
         try:name=options[b'name'].decode('ascii')
         except (KeyError,UnicodeError):raise ApiError('invalid_request','Every part needs a valid name.',400)
-        if disposition!=b'form-data' or name not in {'metadata',*[f'image_{i}' for i in range(1,7)]} or name in parts:
+        if disposition!=b'form-data' or name not in {'metadata','pdf',*[f'image_{i}' for i in range(1,7)]} or name in parts:
             raise ApiError('invalid_request','Unexpected or duplicate multipart part.',400)
         mime=part['headers'].get(b'content-type',b'').decode('ascii','replace').lower()
         if name=='metadata' and mime!='application/json':raise ApiError('unsupported_media_type','Metadata must be application/json.',415)
-        if name!='metadata' and mime not in LIMITS['image_media_types']:raise ApiError('unsupported_media_type','Only still JPEG and PNG images are supported.',415)
-        part.update(name=name,mime=mime,limit=16384 if name=='metadata' else LIMITS['image_file_bytes'])
+        if name=='pdf' and mime!='application/pdf':raise ApiError('unsupported_media_type','The PDF part must be application/pdf.',415)
+        if name not in ('metadata','pdf') and mime not in LIMITS['image_media_types']:raise ApiError('unsupported_media_type','Only still JPEG and PNG images are supported.',415)
+        part.update(name=name,mime=mime,limit=16384 if name=='metadata' else LIMITS['pdf_file_bytes'] if name=='pdf' else LIMITS['image_file_bytes'])
     def data(data,start,end):
         if len(part['data'])+end-start>part['limit']:raise ApiError('payload_too_large','Multipart part exceeds its limit.',413)
         part['data'].extend(data[start:end])
@@ -67,6 +68,12 @@ def multipart(content_type,body):
     except Exception:raise ApiError('invalid_request','Malformed multipart body.',400)
     if not ended or 'metadata' not in parts:raise ApiError('invalid_request','Incomplete multipart upload.',400)
     metadata=load_json(parts.pop('metadata')['data'])
+    if isinstance(metadata,dict) and metadata.get('kind')=='pdf':
+        validate_named('PdfMetadata',metadata)
+        if set(parts)!={'pdf'}:raise ApiError('invalid_request','Share exactly one PDF with its matching manifest entry.',400)
+        part=parts['pdf']
+        if not part['data'].startswith(b'%PDF-'):raise ApiError('unsupported_media_type','File content must be a PDF.',415)
+        return metadata,[(metadata['attachments'][0]['filename'],part['data'],part['mime'])]
     if isinstance(metadata,dict) and isinstance(metadata.get('attachments'),list) and len(metadata['attachments'])>LIMITS['image_count']:
         raise ApiError('payload_too_large','Too many image attachments.',413)
     metadata=validate_named('ImageMetadata',metadata)

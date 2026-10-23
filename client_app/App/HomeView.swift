@@ -35,18 +35,39 @@ struct HomeView: View {
     @State private var photoInput: ShareInput?
     @State private var loadingPhotos = false
 
+    @State private var tab = 0
+
     var body: some View {
+        TabView(selection: $tab) {
+            LibraryView(environment: environment)
+                .tabItem { Label("Recipes", systemImage: "books.vertical") }.tag(0)
+            activity
+                .tabItem { Label("Add & activity", systemImage: "plus.circle") }.tag(1)
+        }
+        .onOpenURL { url in
+            tab = 1
+            guard !busy else { error = "Finish the current operation before opening another registration link."; return }
+            do {
+                guard try environment.store.connection() == nil else { throw ClientError("Disconnect the current account before registering another one.") }
+                enrollment = try EnrollmentLink(url); showEnrollment = true
+            } catch { self.error = error.localizedDescription }
+        }
+        .task(id: scenePhase) {
+            guard scenePhase == .active else { return }
+            if demoSharedInput != nil && !openedDemoShare { tab = 1; openedDemoShare = true; showImport = true }
+            await environment.uploads.resumePending()
+            while !Task.isCancelled {
+                await refresh()
+                do { try await Task.sleep(nanoseconds: 5_000_000_000) } catch { return }
+            }
+        }
+    }
+
+    private var activity: some View {
         NavigationStack {
             homeList
             .navigationTitle("eRecipe")
             .refreshable { await refresh() }
-            .onOpenURL { url in
-                guard !busy else { error = "Finish the current operation before opening another registration link."; return }
-                do {
-                    guard connection == nil else { throw ClientError("Disconnect the current account before registering another one.") }
-                    enrollment = try EnrollmentLink(url); showEnrollment = true
-                } catch { self.error = error.localizedDescription }
-            }
             .alert("Connect to this server?", isPresented: $showEnrollment) {
                 Button("Connect") { redeem() }
                 Button("Cancel", role: .cancel) { enrollment = nil }
@@ -69,16 +90,6 @@ struct HomeView: View {
                             ProgressView("Preparing photos…").padding().background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
                         }
                     }
-            }
-
-            .task(id: scenePhase) {
-                guard scenePhase == .active else { return }
-                if demoSharedInput != nil && !openedDemoShare { openedDemoShare = true; showImport = true }
-                await environment.uploads.resumePending()
-                while !Task.isCancelled {
-                    await refresh()
-                    do { try await Task.sleep(nanoseconds: 5_000_000_000) } catch { return }
-                }
             }
         }
     }

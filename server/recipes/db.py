@@ -1,5 +1,5 @@
 """SQLite records and content-addressed files. No network calls inside transactions."""
-from contextlib import contextmanager
+from contextlib import closing, contextmanager
 from datetime import datetime, timedelta, timezone
 import hashlib
 import json
@@ -49,6 +49,27 @@ class Library:
             c.execute("INSERT OR IGNORE INTO schema_versions VALUES (2, ?)", (now(),))
             c.execute("INSERT OR IGNORE INTO users VALUES ('local', 'Local operator', ?, NULL)", (now(),))
         self.path.chmod(0o600)
+        self._migrate_pdf_sources()
+
+    def _migrate_pdf_sources(self):
+        # SQLite requires a table rebuild to extend a CHECK constraint. Disable
+        # FK enforcement only on this startup connection, before the transaction;
+        # keep the original table name so all referencing tables remain intact.
+        with closing(sqlite3.connect(self.path, timeout=10)) as c, c:
+            c.execute("PRAGMA foreign_keys=OFF")
+            c.execute("BEGIN IMMEDIATE")
+            definition = c.execute("SELECT sql FROM sqlite_master WHERE name='source_captures'").fetchone()[0]
+            if "'pdf'" not in definition:
+                schema = Path(__file__).with_name("schema.sql").read_text()
+                definition = schema.split("CREATE TABLE IF NOT EXISTS source_captures (", 1)[1].split(";", 1)[0]
+                c.execute("CREATE TABLE source_captures_pdf (" + definition)
+                c.execute("INSERT INTO source_captures_pdf SELECT * FROM source_captures")
+                c.execute("DROP TABLE source_captures")
+                c.execute("ALTER TABLE source_captures_pdf RENAME TO source_captures")
+                c.execute("CREATE INDEX captures_recipe ON source_captures(recipe_id, submitted_at)")
+                if c.execute("PRAGMA foreign_key_check").fetchone():
+                    raise RuntimeError("PDF source migration failed its foreign-key check")
+            c.execute("INSERT OR IGNORE INTO schema_versions VALUES (3, ?)", (now(),))
 
     @contextmanager
     def connect(self, write=False):

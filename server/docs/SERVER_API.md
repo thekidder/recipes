@@ -2,7 +2,17 @@
 
 The server now runs the versioned application API, user/phone enrollment dashboard, durable processing worker, and the existing TRMNL firmware endpoints. The authoritative interface is [openapi.yaml](openapi.yaml); [the contract guide](contract/REVIEW.md) explains its behavior.
 
-Text, still JPEG/PNG images, and public HTTP(S) recipe URL imports are enabled. Status advertises `url` and `source_refresh: true`. Rendering still produces one page with explicit overflow errors; automatic pagination is future processing work.
+Text, still JPEG/PNG images, public HTTP(S) recipe URLs, and uploaded Reader PDFs are enabled. Status advertises `url` and `source_refresh: true`. Rendering still produces one page with explicit overflow errors; automatic pagination is future processing work.
+
+## Reader PDF shares
+
+In Safari, use Share → Options → Reader PDF (or PDF), then choose eRecipe. The extension prefers the PDF when Safari also offers a URL. Files can share a single PDF too. The existing background upload, receipt replay, extraction, rendering, and automatic client delivery flow applies unchanged.
+
+`POST /api/v1/imports` accepts multipart with an `application/json` metadata part containing `{"kind":"pdf","attachments":[{"part_name":"pdf","filename":"Recipe.pdf"}]}` and one `pdf` file part of type `application/pdf`. The server advertises `pdf`, `pdf_file_bytes: 20971520`, and `pdf_pages: 50`. Deploy the updated server and install its updated `requirements.txt` before using the new client.
+
+The exact PDF bytes and filename are retained as an `original_pdf` source asset; submitted/resolved URLs remain null. No website is fetched. PDF parsing happens in an isolated child process during the extraction job, with a 30-second wall-clock limit, 20-second CPU limit, bounded decompression, and a 512 MiB address-space limit on Linux. Text is passed to the configured model in page order. Limits are one file of at most 20 MiB, 50 pages, and 400000 bytes of text. Malformed/encrypted files, pages without extractable text, and excessive content fail with actionable errors and preserve the original for inspection. There is no OCR fallback or silent truncation. Re-extraction uses the saved PDF; website refresh is only supported for URL captures.
+
+Existing databases automatically migrate their source-kind constraint on startup, preserving captures, revisions, jobs, and assets. Original PDFs are authenticated attachment downloads, never inline executable content.
 
 ## URL shares
 
@@ -12,7 +22,7 @@ Share a public recipe page from Safari to eRecipe, or use **Paste recipe link** 
 
 Only public HTTP(S) destinations on ports 80/443 are supported. Credentials, local/private/link-local/Tailscale addresses, mixed public/private DNS answers, and unsafe redirects are rejected. Connections pin a validated numeric IP while TLS verifies the original hostname; no cookies, authorization, proxy environment, or subresource requests are used. Limits: five redirects, 4 MiB HTML, 400,000 bytes of extraction evidence, and bounded network timeouts. Evidence that exceeds the limit fails instead of being silently truncated.
 
-Pages must expose recipe text or recipe metadata in their HTML. There is no JavaScript browser, login, paywall bypass, or PDF importer. Download requests ask for uncompressed content; sites that insist on compression return an explicit unsupported-source error. Share text or photos when a site cannot be captured.
+Pages must expose recipe text or recipe metadata in their HTML. URL capture has no JavaScript browser, login, or paywall bypass. Download requests ask for uncompressed content; sites that insist on compression return an explicit unsupported-source error. Share a downloaded Reader PDF, text, or photos when a site cannot be captured.
 
 After a capture failure, iOS offers **Fetch link again**. This calls `POST /api/v1/recipes/{id}/refresh` with `source_capture_id`, creates a linked capture, and preserves the previous attempt. Refresh keys survive ambiguous responses. Refreshing an already extracted recipe creates a candidate and does not replace the current revision automatically; refreshing text/images returns `refresh_unsupported`.
 

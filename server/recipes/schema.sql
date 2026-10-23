@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS recipes (
 CREATE TABLE IF NOT EXISTS source_captures (
     id TEXT PRIMARY KEY NOT NULL, recipe_id TEXT NOT NULL REFERENCES recipes(id),
     previous_capture_id TEXT,
-    kind TEXT NOT NULL CHECK(kind IN ('text','images','url')),
+    kind TEXT NOT NULL CHECK(kind IN ('text','images','url','pdf')),
     submitted_url TEXT, resolved_url TEXT,
     state TEXT NOT NULL CHECK(state IN ('pending','complete','failed')),
     submitted_at TEXT NOT NULL, captured_at TEXT,

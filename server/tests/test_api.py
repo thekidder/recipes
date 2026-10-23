@@ -699,3 +699,52 @@ def test_dashboard_logs_are_bounded_and_redacted(api):
     assert items[0]['sequence'] == 109 and items[-1]['sequence'] == 10
     assert all(item['api_key'] == '[REDACTED]' for item in items)
     assert store.state['api_key'] not in response.text
+
+
+def pdf_parts(data=None):
+    from server.tests.test_pdf import make_pdf
+    metadata={'kind':'pdf','attachments':[{'part_name':'pdf','filename':'Safari Reader.pdf'}]}
+    return [('metadata',(None,json.dumps(metadata),'application/json')),
+            ('pdf',('upload.pdf',make_pdf() if data is None else data,'application/pdf'))]
+
+
+def test_reader_pdf_upload_replay_extraction_and_publication(api):
+    status=api.get('/api/v1/status','getStatus')
+    assert 'pdf' in status['capabilities']['import_kinds']
+    assert status['capabilities']['limits']['pdf_file_bytes']==20*1024*1024
+    api.pair()
+    parts=pdf_parts();idem=key()
+    first=api.web.post('/api/v1/imports',files=parts,headers=api.headers(idem))
+    item=checked(first,'createImport',202)
+    replay=api.web.post('/api/v1/imports',files=list(reversed(parts)),headers=api.headers(idem))
+    assert checked(replay,'createImport',202)==item and replay.headers['Idempotency-Replayed']=='true'
+    changed=pdf_parts(parts[1][1][1]+b'\n')
+    checked(api.web.post('/api/v1/imports',files=changed,headers=api.headers(idem)),'createImport',409)
+    capture=api.get('/api/v1/source-captures/'+item['source_capture_id'],'getSourceCapture')
+    assert capture['kind']=='pdf' and capture['submitted_url'] is None
+    assert capture['assets'][0]['role']=='original_pdf'
+    asset=capture['assets'][0]['asset']
+    downloaded=api.web.get(asset['href'],headers=api.headers())
+    assert downloaded.content==parts[1][1][1]
+    assert downloaded.headers['content-type']=='application/pdf'
+    assert downloaded.headers['content-disposition'].startswith('attachment;')
+    assert api.worker.run_once() and api.worker.run_once()
+    recipe=api.get('/api/v1/recipes/'+item['recipe_id'],'getRecipe')
+    assert recipe['current_revision_id']
+    render=api.db.one('SELECT id FROM render_sets WHERE revision_id=?',(recipe['current_revision_id'],))
+    api.post('/api/v1/publications',{'render_set_id':render['id'],'page_number':1},'createPublication',201)
+    assert 'Mix with lemon juice' in api.calls[0].content.decode()
+
+
+@pytest.mark.parametrize('bad,status', [('missing',400),('duplicate',400),('wrong_mime',415),('fake_pdf',415),('mixed',400),('manifest',422),('oversized',413)])
+def test_pdf_upload_rejections(api,bad,status):
+    parts=pdf_parts()
+    if bad=='missing':parts=parts[:1]
+    if bad=='duplicate':parts.append(parts[1])
+    if bad=='wrong_mime':parts[1]=('pdf',('x.pdf',parts[1][1][1],'image/png'))
+    if bad=='fake_pdf':parts=pdf_parts(b'not a PDF')
+    if bad=='mixed':parts.append(('image_1',('x.png',b'png','image/png')))
+    if bad=='manifest':parts[0]=('metadata',(None,json.dumps({'kind':'pdf','attachments':[{'part_name':'pdf','filename':'x.pdf'}]*2}),'application/json'))
+    if bad=='oversized':parts=pdf_parts(b'%PDF-'+b'x'*(20*1024*1024))
+    checked(api.web.post('/api/v1/imports',files=parts,headers=api.headers()),'createImport',status)
+    assert api.db.all('SELECT * FROM recipes')==[]

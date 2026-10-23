@@ -129,7 +129,7 @@ class URLFetcher:
                     url = next_url
                     continue
                 if response.status != 200:
-                    raise RecipeError('capture_failed', 'The website could not provide this recipe. Try again or share recipe text/photos instead.',
+                    raise RecipeError('capture_failed', 'The website could not provide this recipe. Try again or share Safari’s Reader PDF, recipe text, or photos instead.',
                                       retryable=response.status in (408, 429) or response.status >= 500, details={'http_status': response.status})
                 content_type = response.getheader('Content-Type', '')
                 if content_type.split(';')[0].strip().lower() not in ('text/html', 'application/xhtml+xml'):

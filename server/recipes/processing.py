@@ -17,6 +17,7 @@ from .db import Library, Problem, digest, dumps
 from .document import RecipeError, parse_markdown, to_markdown
 from .openai import OpenAIExtractor
 from .openrouter import OpenRouterExtractor
+from .pdf import MAX_PDF_BYTES, pdf_evidence
 from . import renderer
 
 log = logging.getLogger(__name__)
@@ -99,6 +100,16 @@ class ProcessingService:
         request_hash = digest(dumps(["images", [(a[2], a[3]) for a in assets]]).encode())
         return self.library.submit(user, key, "images", request_hash, assets)
 
+    def submit_pdf(self, filename, data, *, user="local", key):
+        self.key(key)
+        if not isinstance(filename, str) or not 1 <= len(filename) <= 255:
+            raise RecipeError("invalid_pdf", "PDF filenames must contain 1–255 characters.")
+        if len(data) > MAX_PDF_BYTES or not data.startswith(b'%PDF-'):
+            raise RecipeError("invalid_pdf", "Share a PDF of at most 20 MiB.")
+        asset = self.library.asset(data, "application/pdf")
+        return self.library.submit(user, key, "pdf", digest(dumps(["pdf", asset, filename]).encode()),
+                                   [("original_pdf", 0, asset, filename)])
+
     def submit_url(self, url, *, user="local", key):
         self.key(key)
         validate_url(url)
@@ -180,6 +191,9 @@ class Worker:
                 except UnicodeDecodeError as exc:
                     raise RecipeError("invalid_source", "Source text must be UTF-8.") from exc
                 content.append({"type": "input_text", "text": f"Source evidence ({role}):\n{text}"})
+            elif role == "original_pdf":
+                text = pdf_evidence(self.library.asset_bytes(asset["asset_id"]))
+                content.append({"type": "input_text", "text": f"Source evidence (original_pdf, page order):\n{text}"})
             elif role == "original_image":
                 data = normalized_image(self.library.asset_bytes(asset["asset_id"]))
                 content.append({"type": "input_image", "image_url": "data:image/png;base64," + base64.b64encode(data).decode(), "detail": "high"})

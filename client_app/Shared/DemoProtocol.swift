@@ -5,6 +5,7 @@ import UIKit
 // Used only by the explicit debug demo. Never intercepts the real client's session.
 final class DemoProtocol: URLProtocol, @unchecked Sendable {
     private static let failureLock = NSLock()
+    private static var archivedRecipe = false
     private static var injectedFailures = Set<String>()
     private static let statusRecoveryDate = Date().addingTimeInterval(5)
     private static func failOnce(_ flag: String) -> Bool {
@@ -33,6 +34,14 @@ final class DemoProtocol: URLProtocol, @unchecked Sendable {
             var status = 200
             switch path {
             case "/api/v1/status": fixture = "status"
+            case "/api/v1/recipes": fixture = "library"
+            case "/api/v1/recipes/recipe_salad": fixture = "ready_recipe"
+            case "/api/v1/recipes/recipe_salad/archive":
+                if Self.failOnce("--demo-delete-failure") {
+                    finish(Data("{}".utf8), status: 503, type: "application/json"); return
+                }
+                Self.failureLock.lock(); Self.archivedRecipe = true; Self.failureLock.unlock()
+                fixture = "archived"
             case "/api/v1/imports": fixture = "import_text"; status = 202
             case "/api/v1/jobs/job_extract": fixture = "job_extracted"
             case "/api/v1/jobs/job_render": fixture = "job_extracted"
@@ -51,6 +60,9 @@ final class DemoProtocol: URLProtocol, @unchecked Sendable {
             guard let file = Bundle.main.url(forResource: fixture, withExtension: "json") else { throw ClientError("Missing demo fixture.") }
             let envelope = try JSONSerialization.jsonObject(with: Data(contentsOf: file)) as! [String: Any]
             var body = (envelope["response"] as! [String: Any])["body"] as! [String: Any]
+            Self.failureLock.lock(); let archived = Self.archivedRecipe; Self.failureLock.unlock()
+            if path == "/api/v1/recipes", archived { body["items"] = [] }
+            if path == "/api/v1/recipes/recipe_salad", archived { body["archived_at"] = "2026-10-22T12:00:00.000Z" }
             if path == "/api/v1/imports" {
                 if try importKind() == "url" {
                     body["job_id"] = "job_capture"
